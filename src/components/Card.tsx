@@ -4,17 +4,21 @@ export default function Card({
   title,
   right,
   children,
+  className = "",
 }: {
-  title: string;
+  title?: React.ReactNode;
   right?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="rounded-2xl border shadow-sm bg-white p-4 md:p-6">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-base md:text-lg font-semibold">{title}</h2>
-        {right}
-      </div>
+    <section className={`rounded-2xl border bg-white shadow-sm p-4 md:p-6 ${className}`}>
+      {(title || right) && (
+        <header className="mb-3 flex items-center justify-between">
+          {title ? <h2 className="text-lg font-semibold">{title}</h2> : <div />}
+          {right}
+        </header>
+      )}
       {children}
     </section>
   );
