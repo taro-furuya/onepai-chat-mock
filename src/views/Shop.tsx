@@ -196,20 +196,25 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         if (unifiedColor === "rainbow") out.push({ label: PRICING.options.rainbow.label, amount: 800 });
         // （修正前の else を丸ごと置き換え）
       } else {
-        // 個別指定：黒も含めたユニーク色数で判定
-        // 例）[黒, 赤] -> ユニーク2色 => 200円
-        //     [赤, 青] -> ユニーク2色 => 200円
-        //     レインボーが1つでも含まれれば一律800円
-        const uniqAll = Array.from(new Set(perCharColors.filter((c): c is ColorKey => !!c)));
+        // ▼個別指定：入力文字数ぶんの色だけを集計（余分な黒を除外）
+        const usedLen = Math.max(1, splitChars(text || "").length);
+        const usedColors = perCharColors.slice(0, usedLen).map((c) => (c ? c : "black")) as ColorKey[];
+
+        // 黒も含めたユニーク色数で判定（仕様）
+        const uniqAll = Array.from(new Set(usedColors));
         const hasRainbow = uniqAll.includes("rainbow" as ColorKey);
 
         let fee = 0;
         if (hasRainbow) {
-          fee = 800; // レインボーが含まれる場合は一律800円
+          // レインボーが1つでも含まれれば一律800円
+          fee = 800;
         } else {
-          const k = uniqAll.length; // 黒を含むユニーク色数
+          // ユニーク1色までは無料（黒のみ or 非黒1色のみ）
+          // 2色目から 200円/色、上限800円
+          const k = uniqAll.length; // 黒を含むユニーク色数（使用分のみ）
           fee = k <= 1 ? 0 : Math.min(800, (k - 1) * 200);
         }
+
         if (fee > 0) out.push({ label: "色追加", amount: fee });
       }
     }
