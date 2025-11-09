@@ -4,6 +4,7 @@ import Hero from "./components/Hero";
 import Shop from "./views/Shop";
 import Guidelines from "./views/Guidelines";
 import Corporate from "./views/Corporate";
+import NameTilePreview, { ColorKey } from "./components/NameTilePreview";
 
 export type View = "shop" | "guidelines" | "corporate";
 
