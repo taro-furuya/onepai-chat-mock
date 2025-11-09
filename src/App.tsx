@@ -1,384 +1,495 @@
-/*
-  one牌｜AIチャット購入体験 モック（プレビュー改善版 v7.7.0）
-  - 変更: 既定テキストを「麻雀」に変更。
-  - 改善: 2文字以上・2行時の文字サイズを約1.5倍まで拡大（はみ出し防止の上限付き）。
-  - 維持: 牌プレビュー、色一括/個別、縦横レイアウト、上下レインボー、2行時は右→左の縦書き。
-  - 追加: 軽いスモークテストの継続。
-*/
+// --- 先頭付近 ---
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import React, { useMemo, useState, useEffect } from "react";
+// 追加: 擬似ルーターで使うビュー型
+type View = "shop" | "guidelines" | "corporate";
 
-// ===== 色ユーティリティ =====
-const PALETTE = [
-  { key: "black", label: "ブラック", css: "#0a0a0a" },
-  { key: "red", label: "レッド", css: "#d10f1b" },
-  { key: "blue", label: "ブルー", css: "#1f57c3" },
-  { key: "green", label: "グリーン", css: "#0d7a3a" },
-  { key: "pink", label: "ピンク", css: "#e75480" },
-  // レインボーは上下グラデーション
-  { key: "rainbow", label: "レインボー", css: "linear-gradient(180deg,#d10f1b,#ff7a00,#ffd400,#1bb34a,#1f57c3,#7a2bc2)" },
-] as const;
+/** ========= プレビュー用の型・定数 ========= */
+type Layout = "vertical" | "horizontal";
+type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
 
-type ColorKey = (typeof PALETTE)[number]["key"];
-const colorCss = (k: ColorKey) => PALETTE.find((p) => p.key === k)!.css as string;
+const COLORS: { key: ColorKey; label: string; css: string; isGradient?: boolean }[] = [
+  { key: "black", label: "●ブラック", css: "#0a0a0a" },
+  { key: "red", label: "●レッド", css: "#d10f1b" },
+  { key: "blue", label: "●ブルー", css: "#1e5ad7" },
+  { key: "green", label: "●グリーン", css: "#2e7d32" },
+  { key: "pink", label: "●ピンク", css: "#e24a86" },
+  // レインボーは上下（縦方向）グラデーション
+  {
+    key: "rainbow",
+    label: "●レインボー",
+    css:
+      "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
+    isGradient: true,
+  },
+];
 
-// ====== 文字分割（4超で自動2行/2列） ======
-function splitForTwoLines(chars: string[]) {
-  if (chars.length <= 4) return [chars];
-  const half = Math.ceil(chars.length / 2);
-  return [chars.slice(0, half), chars.slice(half)];
-}
+const DEFAULT_TEXT = "麻雀";
 
-// ===== スモークテスト =====
-function runSmokeTests() {
-  try {
-    console.assert(
-      JSON.stringify(splitForTwoLines(["一", "二", "三", "四"])) ===
-        JSON.stringify([["一", "二", "三", "四"]]),
-      "split: <=4 stays one group"
-    );
-    const s2 = splitForTwoLines(["一", "二", "三", "四", "五"]);
-    console.assert(s2.length === 2 && s2[0].length === 3 && s2[1].length === 2, "split: 5 -> 3/2");
-    console.assert(colorCss("black").length > 0 && colorCss("rainbow").includes("linear-gradient"), "palette css ok");
-  } catch (e) {
-    console.warn("Smoke tests raised:", e);
-  }
-}
+/** ========= ユーティリティ ========= */
+const splitChars = (input: string): string[] => Array.from(input || "");
+const ensureLen = (arr: ColorKey[], need: number): ColorKey[] => {
+  const out = arr.slice();
+  while (out.length < need) out.push("black");
+  return out.slice(0, need);
+};
+// 右→左の改行順を意識して 2 行に分割
+const splitToLines = (chars: string[]): [string[], string[]] => {
+  if (chars.length <= 4) return [chars, []];
+  const first = chars.slice(0, Math.ceil(chars.length / 2));
+  const second = chars.slice(Math.ceil(chars.length / 2));
+  return [first, second]; // 描画時に右列=first, 左列=second として扱う
+};
 
-// ====== 色スウォッチ（●ブラック などのUI） ======
-function ColorOption({
-  swatch,
+/** ========= 小パーツ ========= */
+const DotLabel: React.FC<{ color: string; text: string; active?: boolean; onClick?: () => void }> = ({
+  color,
+  text,
   active,
   onClick,
-}: {
-  swatch: (typeof PALETTE)[number];
-  active: boolean;
-  onClick: () => void;
-}) {
-  const bulletStyle: React.CSSProperties =
-    swatch.key === "rainbow"
-      ? { background: swatch.css, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }
-      : { color: swatch.css };
+}) => {
+  const isGradient = color.startsWith("linear-gradient");
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-2 py-1 rounded border text-sm flex items-center gap-1 hover:bg-neutral-50 ${
-        active ? "ring-2 ring-black" : ""
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm hover:bg-neutral-50 ${
+        active ? "border-neutral-900" : "border-neutral-300"
       }`}
     >
-      <span style={bulletStyle}>●</span>
-      <span>{swatch.label}</span>
+      <span
+        aria-hidden
+        className="inline-block w-4 h-4 rounded-full"
+        style={isGradient ? { backgroundImage: color } : { backgroundColor: color }}
+      />
+      <span>{text}</span>
     </button>
   );
-}
+};
 
-// ====== 牌プレビュー ======
-function TilePreview({
-  text,
-  layout, // "vertical" | "horizontal"
-  font,
-  colors,
-}: {
+/** ========= 牌プレビュー ========= */
+const TilePreview: React.FC<{
   text: string;
-  layout: "vertical" | "horizontal";
-  font: string;
-  colors: ColorKey[];
-}) {
-  const chars = useMemo(() => Array.from(text || ""), [text]);
-  const groups = useMemo(() => splitForTwoLines(chars), [chars]);
-
-  // 牌のサイズ（固定値で安定表示）
-  const width = layout === "vertical" ? 360 : 580; // px
-  const aspect = layout === "vertical" ? 21 / 28 : 28 / 21; // width / height
-  const height = Math.round(width / aspect);
-  const padding = 10; // コンテナの内側余白
-  const shortSide = Math.min(width, height) - padding * 2;
-
-  // フォントサイズ計算
-  const maxLenInGroup = groups.reduce((m, g) => Math.max(m, g.length), 0) || 1;
-  const columnCount = groups.length; // 1 または 2
-  let fontSize: number;
-  const singleMax = Math.floor(shortSide * 0.85);
-  if (chars.length === 1) {
-    fontSize = singleMax; // はみ出さない
-  } else if (columnCount === 1) {
-    const coeff = layout === "vertical" ? 0.86 : 0.82;
-    const base = (shortSide * coeff) / maxLenInGroup;
-    fontSize = Math.floor(Math.min(base * 1.5, singleMax)); // 1.5倍まで拡大、上限は単字サイズ
-  } else {
-    const coeff = layout === "vertical" ? 0.86 : 0.8;
-    const base = (shortSide * coeff) / maxLenInGroup;
-    fontSize = Math.floor(Math.min(base * 1.5, singleMax * 0.9)); // 2行時も拡大（90%上限）
-  }
-
-  // CSS ヘルパ（レインボー塗り）
-  const colorStyle = (k: ColorKey): React.CSSProperties =>
-    k === "rainbow"
-      ? { background: colorCss(k), WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }
-      : { color: colorCss(k) };
-
-  // 1文字ごとの色取得（不足時は黒）
-  const colorAt = (index: number): ColorKey => (colors[index] ? colors[index] : "black");
-
-  return (
-    <div
-      className="mx-auto select-none shadow-[0_8px_20px_rgba(0,0,0,.08)] bg-white"
-      style={{
-        width,
-        aspectRatio: `${aspect}`,
-        borderRadius: 18,
-        border: "3px solid #111", // 単一の枠線
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding,
-      }}
-    >
-      {layout === "vertical" ? (
-        // 右から左に改行（右列→左列の順で表示）
-        <div style={{ display: "flex", gap: 8, flexDirection: "row-reverse" }}>
-          {groups.map((col, ci) => (
-            <div
-              key={ci}
-              style={{
-                writingMode: "vertical-rl",
-                textOrientation: "upright",
-                fontFamily: font,
-                fontSize,
-                lineHeight: 1.05,
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              {col.map((ch, i) => (
-                <span key={i} style={colorStyle(colorAt(ci * (groups[0].length || 0) + i))}>
-                  {ch}
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "92%", textAlign: "center" }}>
-          {groups.map((row, ri) => (
-            <div
-              key={ri}
-              style={{
-                fontFamily: font,
-                fontSize,
-                lineHeight: 1.0,
-                display: "flex",
-                justifyContent: "center",
-                gap: 8,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {row.map((ch, i) => (
-                <span key={i} style={colorStyle(colorAt(ri * (groups[0].length || 0) + i))}>
-                  {ch}
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ====== アプリ本体 ======
-export default function App() {
-  // Typekit ロード
-  useEffect(() => {
-    (function (d: Document) {
-      const config = { kitId: "xew3lay", scriptTimeout: 3000, async: true } as const;
-      const h = d.documentElement;
-      const t = window.setTimeout(() => {
-        h.className = h.className.replace(/wf-loading/g, "") + " wf-inactive";
-      }, config.scriptTimeout);
-      const tk = d.createElement("script");
-      let f = false as boolean;
-      const s = d.getElementsByTagName("script")[0];
-      let a: string | undefined;
-      h.className += " wf-loading";
-      tk.src = "https://use.typekit.net/" + config.kitId + ".js";
-      (tk as any).async = true;
-      (tk.onload = tk.onreadystatechange = function () {
-        // @ts-ignore
-        a = this.readyState;
-        if (f || (a && a !== "complete" && a !== "loaded")) return;
-        f = true;
-        clearTimeout(t);
-        try {
-          // @ts-ignore
-          (window as any).Typekit.load(config);
-        } catch (e) {}
-      }) as any;
-      s.parentNode?.insertBefore(tk, s);
-    })(document);
-  }, []);
+  layout: Layout;
+  perCharColors: ColorKey[];
+  useUnifiedColor: boolean;
+  unifiedColor: ColorKey;
+}> = ({ text, layout, perCharColors, useUnifiedColor, unifiedColor }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [box, setBox] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
   useEffect(() => {
-    runSmokeTests();
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setBox({ w: r.width, h: r.height });
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
   }, []);
 
-  const [text, setText] = useState("麻雀");
-  const [layout, setLayout] = useState<"vertical" | "horizontal">("vertical");
-  const [fontKey, setFontKey] = useState("ta-fuga-fude");
+  const chars = useMemo(() => splitChars(text), [text]);
+  const [lineR, lineL] = useMemo(() => splitToLines(chars), [chars]);
 
-  const FONT_STACKS: Record<string, string> = {
-    "ta-fuga-fude": 'ta-fuga-fude, "TA風雅筆", "Yu Mincho", serif',
-    gothic: 'system-ui, -apple-system, "Noto Sans JP", sans-serif',
-    mincho: '"Yu Mincho", "Hiragino Mincho ProN", serif',
+  const colorsFor = (line: string[]) => {
+    const base = useUnifiedColor ? new Array(chars.length).fill(unifiedColor) : ensureLen(perCharColors, chars.length);
+    if (line === lineR) return base.slice(0, line.length);
+    return base.slice(lineR.length, lineR.length + line.length);
   };
 
-  // 色指定モード
-  const [colorMode, setColorMode] = useState<"global" | "perChar">("perChar");
-  const [globalColor, setGlobalColor] = useState<ColorKey>("black");
+  // 自動スケール
+  const fontSizePx = useMemo(() => {
+    const pad = 28;
+    const w = Math.max(0, box.w - pad * 2);
+    const h = Math.max(0, box.h - pad * 2);
+    if (!w || !h) return 48;
 
-  // 1文字ごとの色（不足分は黒で埋める）
-  const [colors, setColors] = useState<ColorKey[]>(["black", "black", "black", "black", "black", "black"]);
-  const setColorAt = (i: number, c: ColorKey) =>
-    setColors((prev) => {
-      const next = prev.slice();
-      next[i] = c;
-      return next;
-    });
+    const oneLine = chars.length <= 4;
+    if (layout === "vertical") {
+      const columns = oneLine ? 1 : 2;
+      const colWidth = w / columns;
+      const perColChars = oneLine ? chars.length : Math.ceil(chars.length / 2);
+      const fitByHeight = (h / perColChars) * 0.9;
+      const fitByWidth = colWidth * 0.9;
+      return Math.floor(Math.min(fitByHeight, fitByWidth));
+    } else {
+      const rows = oneLine ? 1 : 2;
+      const rowHeight = h / rows;
+      const perRowChars = oneLine ? chars.length : Math.ceil(chars.length / 2);
+      const fitByWidth = (w / perRowChars) * 0.9;
+      const fitByHeight = rowHeight * 0.9;
+      return Math.floor(Math.min(fitByWidth, fitByHeight));
+    }
+  }, [box, layout, chars.length]);
 
-  const chars = Array.from(text || "");
-  const colorArray = useMemo(() => {
-    if (colorMode === "global") return new Array(Math.max(1, chars.length)).fill(globalColor) as ColorKey[];
-    const need = Math.max(1, chars.length);
-    const out = colors.slice();
-    while (out.length < need) out.push("black");
-    return out.slice(0, need);
-  }, [colors, chars.length, colorMode, globalColor]);
+  const tileRatio = layout === "vertical" ? 28 / 21 : 21 / 28; // w/h
+  const borderRadius = 18;
+
+  const renderChar = (ch: string, idx: number, colorKey: ColorKey) => {
+    const cDef = COLORS.find((c) => c.key === colorKey)!;
+    const style: React.CSSProperties = cDef.isGradient
+      ? { backgroundImage: cDef.css, WebkitBackgroundClip: "text", color: "transparent" }
+      : { color: cDef.css };
+    return (
+      <span key={idx} style={style}>
+        {ch}
+      </span>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="font-semibold">one牌</div>
-          <nav className="text-sm text-neutral-600">AIチャット購入体験｜プレビュー改善版</nav>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
-        {/* 入力 */}
-        <section className="rounded-2xl border bg-white p-4 md:p-6">
-          <h2 className="text-lg font-semibold mb-3">入力</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <div>
-                <div className="text-sm mb-1">文字</div>
-                <input
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  className="border rounded-lg px-3 py-2 w-full"
-                  placeholder="例）麻雀"
-                />
+    <div className="w-full">
+      <div
+        ref={containerRef}
+        className="mx-auto bg-white shadow-xl"
+        style={{
+          aspectRatio: `${tileRatio} / 1`,
+          borderRadius,
+          border: "2px solid #111",
+        }}
+      >
+        <div className="h-full w-full" style={{ padding: 18 }}>
+          {layout === "vertical" ? (
+            <div className="h-full w-full flex flex-row-reverse gap-1">
+              {/* 右列 */}
+              <div
+                className="flex-1 h-full flex items-center justify-center"
+                style={{
+                  writingMode: "vertical-rl",
+                  fontSize: fontSizePx,
+                  lineHeight: 1,
+                  fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', serif",
+                }}
+              >
+                {lineR.map((ch, i) => renderChar(ch, i, colorsFor(lineR)[i] as ColorKey))}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="text-sm">レイアウト</div>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${layout === "vertical" ? "bg-black text-white" : ""}`}
-                  onClick={() => setLayout("vertical")}
+              {/* 左列 */}
+              {lineL.length > 0 && (
+                <div
+                  className="flex-1 h-full flex items-center justify-center"
+                  style={{
+                    writingMode: "vertical-rl",
+                    fontSize: fontSizePx,
+                    lineHeight: 1,
+                    fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', serif",
+                  }}
                 >
-                  縦
-                </button>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${layout === "horizontal" ? "bg-black text-white" : ""}`}
-                  onClick={() => setLayout("horizontal")}
-                >
-                  横
-                </button>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="text-sm">フォント</div>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${fontKey === "ta-fuga-fude" ? "bg-black text-white" : ""}`}
-                  onClick={() => setFontKey("ta-fuga-fude")}
-                >
-                  萬子風
-                </button>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${fontKey === "gothic" ? "bg-black text-white" : ""}`}
-                  onClick={() => setFontKey("gothic")}
-                >
-                  ゴシック
-                </button>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${fontKey === "mincho" ? "bg-black text-white" : ""}`}
-                  onClick={() => setFontKey("mincho")}
-                >
-                  明朝
-                </button>
-              </div>
-            </div>
-
-            {/* 色選択 */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="text-sm">色の指定</div>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${colorMode === "global" ? "bg-black text-white" : ""}`}
-                  onClick={() => setColorMode("global")}
-                >
-                  一括
-                </button>
-                <button
-                  className={`px-3 py-1 rounded-lg border ${colorMode === "perChar" ? "bg-black text-white" : ""}`}
-                  onClick={() => setColorMode("perChar")}
-                >
-                  個別
-                </button>
-              </div>
-
-              {colorMode === "global" ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {PALETTE.map((sw) => (
-                    <ColorOption key={sw.key} swatch={sw} active={globalColor === sw.key} onClick={() => setGlobalColor(sw.key)} />
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {Array.from(text || "").map((ch, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="w-6 text-right">{ch || "・"}</span>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {PALETTE.map((sw) => (
-                          <ColorOption
-                            key={sw.key}
-                            swatch={sw}
-                            active={(colorArray[idx] || "black") === sw.key}
-                            onClick={() => setColorAt(idx, sw.key)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                  {lineL.map((ch, i) => renderChar(ch, i, colorsFor(lineL)[i] as ColorKey))}
                 </div>
               )}
             </div>
+          ) : (
+            <div className="h-full w-full flex flex-col justify-center">
+              <div
+                className="w-full text-center"
+                style={{ fontSize: fontSizePx, lineHeight: 1, fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', serif" }}
+              >
+                {lineR.map((ch, i) => renderChar(ch, i, colorsFor(lineR)[i] as ColorKey))}
+              </div>
+              {lineL.length > 0 && (
+                <div
+                  className="w-full text-center"
+                  style={{
+                    fontSize: fontSizePx,
+                    lineHeight: 1,
+                    fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', serif",
+                  }}
+                >
+                  {lineL.map((ch, i) => renderChar(ch, i, colorsFor(lineL)[i] as ColorKey))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** ========= アプリ本体（ルーター＋入力UI＋プレビュー） ========= */
+export default function App() {
+  // 追加: ビュー切替（location.hash と同期）
+  const [activeView, setActiveView] = useState<View>(() => {
+    const h = (location.hash || "").replace("#", "");
+    return (["shop", "guidelines", "corporate"] as View[]).includes(h as View) ? (h as View) : "shop";
+  });
+  useEffect(() => {
+    const onHash = () => {
+      const h = (location.hash || "").replace("#", "");
+      if ((["shop", "guidelines", "corporate"] as View[]).includes(h as View)) {
+        setActiveView(h as View);
+      }
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const goto = (v: View) => {
+    if (location.hash !== `#${v}`) location.hash = v;
+    else setActiveView(v);
+  };
+
+  // 既存: 各state（プレビュー）
+  const [text, setText] = useState<string>(DEFAULT_TEXT);
+  const [layout, setLayout] = useState<Layout>("vertical");
+  const [useUnifiedColor, setUseUnifiedColor] = useState<boolean>(true);
+  const [unifiedColor, setUnifiedColor] = useState<ColorKey>("black");
+  const [perCharColors, setPerCharColors] = useState<ColorKey[]>([]);
+  useEffect(() => {
+    const len = splitChars(text).length;
+    setPerCharColors((prev) => ensureLen(prev, len));
+  }, [text]);
+  const setColorAt = (idx: number, key: ColorKey) =>
+    setPerCharColors((prev) => {
+      const next = prev.slice();
+      next[idx] = key;
+      return next;
+    });
+  const chars = useMemo(() => splitChars(text), [text]);
+
+  // 置換: スクロール先参照
+  const selectRef = useRef<HTMLDivElement | null>(null);
+  const pageRef = useRef<HTMLDivElement | null>(null);
+
+  // 置換: スクロール関数（暴走対策）
+  const scrollToSelect = () => {
+    const el = selectRef.current;
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {
+      const top = el.getBoundingClientRect().top + (document.scrollingElement?.scrollTop || 0) - 16;
+      window.scrollTo({ top });
+    }
+  };
+
+  // 追加: フッターバーに隠れない余白
+  const BOTTOM_BAR_HEIGHT = 72;
+
+  return (
+    <div
+      ref={pageRef}
+      style={{ minHeight: "100dvh", paddingBottom: BOTTOM_BAR_HEIGHT + 16 }}
+      className="bg-neutral-50"
+    >
+      {/* ヘッダー */}
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
+          <div className="font-semibold">one牌</div>
+          <nav className="flex items-center gap-2 text-sm">
+            <button
+              type="button"
+              className={`px-3 py-1 rounded ${activeView === "shop" ? "bg-black text-white" : "border"}`}
+              onClick={() => goto("shop")}
+            >
+              ショップ
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 rounded ${activeView === "guidelines" ? "bg-black text-white" : "border"}`}
+              onClick={() => goto("guidelines")}
+            >
+              入稿規定
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 rounded ${activeView === "corporate" ? "bg-black text-white" : "border"}`}
+              onClick={() => goto("corporate")}
+            >
+              法人お問い合わせ
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* ヒーロー（ショップのみ） */}
+      {activeView === "shop" && (
+        <section className="rounded-2xl border shadow-sm overflow-hidden mt-4 max-w-5xl mx-auto">
+          <div className="relative">
+            <div className="h-40 md:h-56 bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-700" />
+            <div className="absolute inset-0 flex items-center justify-between px-6 md:px-10">
+              <div className="text-white">
+                <h1 className="text-xl md:text-3xl font-bold drop-shadow">one牌｜AIチャット購入体験 モック</h1>
+                <p className="text-neutral-200 text-xs md:text-sm mt-1">チャットの流れで注文できるUIの試作です。</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={scrollToSelect}
+                  className="px-4 md:px-5 py-2 md:py-3 rounded-xl bg-white text-neutral-900 shadow text-xs md:text-base font-medium"
+                >
+                  オリジナル麻雀牌を作ってみる
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goto("corporate")}
+                  className="hidden md:inline-block px-4 md:px-5 py-2 md:py-3 rounded-xl bg-white/90 text-neutral-900 shadow text-xs md:text-base font-medium"
+                >
+                  法人お問い合わせ
+                </button>
+              </div>
+            </div>
           </div>
         </section>
+      )}
 
-        {/* プレビュー */}
-        <section className="rounded-2xl border bg-white p-4 md:p-6">
-          <h2 className="text-lg font-semibold mb-3">プレビュー</h2>
-          <TilePreview text={text} layout={layout} font={FONT_STACKS[fontKey]} colors={colorArray} />
+      {/* ショップビュー：入力＆プレビュー */}
+      {activeView === "shop" && (
+        <section className="max-w-5xl mx-auto mt-6 grid md:grid-cols-2 gap-6">
+          {/* 入力カード */}
+          <div ref={selectRef} className="rounded-2xl border shadow-sm bg-white p-4 md:p-6">
+            <h2 className="font-semibold mb-4">入力</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-neutral-600 mb-1">文字</label>
+                <input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="例）麻雀好き"
+                />
+                <p className="text-xs text-neutral-500 mt-1">全角4文字超で自動的に2行になります。</p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-neutral-600 mb-1">レイアウト</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-lg border ${layout === "vertical" ? "bg-black text-white" : ""}`}
+                    onClick={() => setLayout("vertical")}
+                  >
+                    縦
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-lg border ${layout === "horizontal" ? "bg-black text-white" : ""}`}
+                    onClick={() => setLayout("horizontal")}
+                  >
+                    横
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-neutral-600 mb-2">色の指定</label>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-lg border ${useUnifiedColor ? "bg-black text-white" : ""}`}
+                    onClick={() => setUseUnifiedColor(true)}
+                  >
+                    一括指定
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-lg border ${!useUnifiedColor ? "bg-black text-white" : ""}`}
+                    onClick={() => setUseUnifiedColor(false)}
+                  >
+                    1文字ずつ指定
+                  </button>
+                </div>
+
+                {useUnifiedColor ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {COLORS.map((c) => (
+                      <DotLabel
+                        key={c.key}
+                        color={c.css}
+                        text={c.label}
+                        active={unifiedColor === c.key}
+                        onClick={() => setUnifiedColor(c.key)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {chars.map((ch, i) => (
+                      <div key={`${ch}-${i}`} className="flex items-center gap-3">
+                        <div className="w-6 text-right font-medium">{ch}</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 flex-1">
+                          {COLORS.map((c) => (
+                            <DotLabel
+                              key={c.key}
+                              color={c.css}
+                              text={c.label}
+                              active={(perCharColors[i] || "black") === c.key}
+                              onClick={() => setColorAt(i, c.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* プレビューカード */}
+          <div className="rounded-2xl border shadow-sm bg-white p-4 md:p-6">
+            <h2 className="font-semibold mb-4">プレビュー</h2>
+            <TilePreview
+              text={text || DEFAULT_TEXT}
+              layout={layout}
+              perCharColors={perCharColors}
+              useUnifiedColor={useUnifiedColor}
+              unifiedColor={unifiedColor}
+            />
+          </div>
         </section>
-      </main>
+      )}
 
-      {/* 簡易フォント埋め込み */}
-      <style>{`
-        @font-face {
-          font-family: 'ta-fuga-fude';
-          src: url('/assets/TA-Fugafude.woff2') format('woff2'), url('/assets/TA-Fugafude.woff') format('woff');
-          font-weight: 400; font-style: normal; font-display: swap;
-        }
-      `}</style>
+      {/* 入稿規定ビュー（仮） */}
+      {activeView === "guidelines" && (
+        <section className="max-w-5xl mx-auto mt-6">
+          <div className="rounded-2xl border shadow-sm bg-white p-6">
+            <h2 className="font-semibold mb-3">入稿規定</h2>
+            <ul className="list-disc pl-5 space-y-1 text-sm text-neutral-700">
+              <li>推奨形式：AI / PDF（アウトライン化）/ PSD / PNG・JPG（解像度300dpi以上）</li>
+              <li>デザインデータは白黒二値化したものをご用意ください。</li>
+              <li>細線や細かいディテールは潰れる可能性があります。</li>
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* 法人問い合わせビュー（仮） */}
+      {activeView === "corporate" && (
+        <section className="max-w-5xl mx-auto mt-6">
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="rounded-2xl border shadow-sm bg-white p-4 md:p-6 grid md:grid-cols-2 gap-3"
+          >
+            <h2 className="font-semibold md:col-span-2">法人お問い合わせ</h2>
+            <div>
+              <label className="block text-sm text-neutral-600 mb-1">会社名</label>
+              <input className="w-full border rounded-lg px-3 py-2" placeholder="株式会社〇〇" />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-600 mb-1">ご担当者名</label>
+              <input className="w-full border rounded-lg px-3 py-2" placeholder="山田 太郎" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm text-neutral-600 mb-1">ご要件</label>
+              <textarea className="w-full border rounded-lg px-3 py-2 h-28" placeholder="ご相談内容をご記入ください" />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button type="button" className="px-4 py-2 rounded-xl bg-black text-white">
+                送信（ダミー）
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {/* 下部固定バー（小計などの将来スペース） */}
+      <div
+        style={{ height: BOTTOM_BAR_HEIGHT }}
+        className="fixed left-0 right-0 bottom-0 z-30 bg-white/95 border-t backdrop-blur"
+      >
+        {/* ここに小計やカート導線を配置予定。ボタンは必ず type="button" にしてください。 */}
+      </div>
     </div>
   );
 }
