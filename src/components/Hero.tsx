@@ -5,18 +5,18 @@ const Hero: React.FC<{ onPrimary: () => void; onSecondary: () => void }> = ({
   onSecondary,
 }) => {
   return (
-    <section
-      className="rounded-2xl shadow-sm overflow-hidden mt-4 border"
-      style={{
-        // セクション自身に濃い目の背景（白に落ちないように）
-        background:
-          "radial-gradient(1200px 400px at 20% -10%, #4b5563 0%, #111827 55%, #0b0b0b 100%)",
-      }}
-    >
-      <div className="relative h-40 md:h-56">
-        {/* コンテンツ */}
+    <section className="rounded-2xl border shadow-sm overflow-hidden mt-4">
+      <div className="relative">
+        {/* 透けずに必ず見える濃色バック */}
+        <div
+          className="h-40 md:h-56"
+          style={{
+            background:
+              "radial-gradient(1200px 420px at 15% -20%, #4b5563 0%, #23272f 55%, #0b0b0c 100%)",
+          }}
+        />
         <div className="absolute inset-0 flex items-center justify-between px-6 md:px-10">
-          <div className="text-white drop-shadow-sm">
+          <div className="text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.6)]">
             <h1 className="text-xl md:text-3xl font-bold">one牌｜AIチャット購入体験 モック</h1>
             <p className="text-neutral-200/95 text-xs md:text-sm mt-1">
               チャットの流れで、そのままオリジナル麻雀牌を注文できるUIの試作です。
