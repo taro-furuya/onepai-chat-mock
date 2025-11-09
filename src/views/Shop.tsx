@@ -33,7 +33,7 @@ const PRICING = {
     design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
     design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
     multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" }, // ¥800 固定
+    rainbow: { priceIncl: 800, label: "レインボー" },
     kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
     bring_own_color_unit: { priceIncl: 200, label: "持ち込み追加色（1色）" },
   },
@@ -161,7 +161,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-  /** 単価・オプション内訳（色の料金ロジック更新：最大¥800、レインボーは¥800） */
+  /** 単価・オプション内訳（色の料金ロジック） */
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
     const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
@@ -191,14 +191,23 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
     if (isSingle && designType === "name_print") {
       if (useUnifiedColor) {
-        if (unifiedColor === "rainbow") {
-          out.push({ label: PRICING.options.rainbow.label, amount: 800 });
-        }
+        // 一括指定：レインボーのみ¥800、それ以外は¥0
+        if (unifiedColor === "rainbow") out.push({ label: PRICING.options.rainbow.label, amount: 800 });
       } else {
+        // 1文字ずつ：ユニーク色が1色なら（黒以外でも）¥0
+        // ユニークにレインボーが含まれる場合は一律¥800
         const uniq = new Set(perCharColors);
-        const fee = uniq.has("rainbow")
-          ? 800
-          : Math.min(800, Math.max(0, uniq.size - 1) * 200);
+        let fee = 0;
+        if (uniq.has("rainbow")) {
+          fee = 800;
+        } else {
+          const uniqCount = uniq.size;
+          if (uniqCount <= 1) {
+            fee = 0;
+          } else {
+            fee = Math.min(800, Math.max(0, uniqCount - 1) * 200);
+          }
+        }
         if (fee > 0) out.push({ label: "色追加", amount: fee });
       }
     }
@@ -309,7 +318,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   };
   const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
 
-  /** カート操作（割引はカート全体で再計算するため、ここでは持たせない） */
+  /** カート操作 */
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
@@ -340,6 +349,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     setToast("カートに追加しました");
     setTimeout(() => setToast(null), 1200);
   };
+  const removeFromCart = (id: string) => setCartItems((prev) => prev.filter((x) => x.id !== id));
 
   /** ===== カート全体の金額（累計割引対応） ===== */
   const cartGross = cartItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
@@ -538,6 +548,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                             );
                           })}
                         </div>
+                        <p className="pl-0 md:pl-24 text-xs text-neutral-600 mt-1">
+                          他の色をご希望の場合は備考欄に記載ください。
+                        </p>
                       </div>
                     ) : (
                       <div className="pl-24 space-y-2">
@@ -584,6 +597,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                             </div>
                           </div>
                         ))}
+                        <p className="text-xs text-neutral-600 mt-1">
+                          他の色をご希望の場合は備考欄に記載ください。
+                        </p>
                       </div>
                     )}
                   </div>
@@ -836,7 +852,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 6. 見積（ボタンはボトムバーと同サイズ） */}
+        {/* 6. 見積（ボタンは固定高さ/横長） */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -869,10 +885,18 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             </div>
 
             <div className="flex items-end justify-end gap-2">
-              <button type="button" onClick={addToCart} className="px-5 py-2 rounded-xl border bg-white text-sm hover:bg-neutral-50">
+              <button
+                type="button"
+                onClick={addToCart}
+                className="h-10 px-6 rounded-xl border bg-white text-sm hover:bg-neutral-50"
+              >
                 カートに追加
               </button>
-              <button type="button" onClick={() => alert('チェックアウトはモックです')} className="px-5 py-2 rounded-xl bg-black text-white text-sm">
+              <button
+                type="button"
+                onClick={() => alert('チェックアウトはモックです')}
+                className="h-10 px-6 rounded-xl bg-black text-white text-sm"
+              >
                 購入手続きへ
               </button>
             </div>
@@ -887,6 +911,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         discount={cartDiscount}
         total={cartTotal}
         onAddToCart={addToCart}
+        onRemoveItem={removeFromCart}
         items={cartItems.map((ci) => ({
           id: ci.id,
           title: ci.title,
