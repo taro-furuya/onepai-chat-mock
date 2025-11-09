@@ -1,150 +1,183 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
+export type Layout = "vertical" | "horizontal";
 export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
 
-const mapColor = (c: ColorKey): string => {
-  switch (c) {
-    case "black": return "#0a0a0a";
-    case "red": return "#d10f1b";
-    case "blue": return "#1f57c3";
-    case "green": return "#0d7a3a";
-    case "pink": return "#e75480";
-    case "rainbow": return "#d10f1b"; // プレビュー基準色
-    default: return "#0a0a0a";
-  }
+const COLORS: Record<ColorKey, { css: string; gradient?: boolean }> = {
+  black: { css: "#0a0a0a" },
+  red: { css: "#d10f1b" },
+  blue: { css: "#1e5ad7" },
+  green: { css: "#2e7d32" },
+  pink: { css: "#e24a86" },
+  rainbow: {
+    css:
+      "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
+    gradient: true,
+  },
 };
 
-const clampChars = (s: string) => Array.from(s || "");
-const splitTwoLines = (chars: string[]) => {
-  // 全角4文字を上限として 2行に分割（5文字目以降は2行目へ）
-  const line1 = chars.slice(0, 4).join("");
-  const line2 = chars.slice(4).join("");
-  return [line1, line2] as const;
+const splitChars = (s: string) => Array.from(s || "");
+const ensureLen = (arr: ColorKey[], need: number): ColorKey[] => {
+  const out = arr.slice();
+  while (out.length < need) out.push("black");
+  return out.slice(0, need);
 };
 
-export function NameTilePreview({
-  text,
-  layout,            // "vertical" | "horizontal"
-  fontStack,
-  colors,            // 文字ごとの色（単一色の場合は同じ色の配列でOK）
-  size = 1.0,        // 1.0=標準（縦: 240x360、横: 360x240）
-}: {
+// 右→左の2段（縦：2列、横：2行）
+const splitToLines = (chars: string[]): [string[], string[]] => {
+  if (chars.length <= 4) return [chars, []];
+  const mid = Math.ceil(chars.length / 2);
+  return [chars.slice(0, mid), chars.slice(mid)];
+};
+
+type Props = {
   text: string;
-  layout: "vertical" | "horizontal";
-  fontStack: string;
-  colors: ColorKey[];
-  size?: number;
-}) {
-  // 牌サイズ（横向き時は幅＞高さ）
-  const portrait = { w: Math.round(240 * size), h: Math.round(360 * size) };
-  const landscape = { w: Math.round(360 * size), h: Math.round(240 * size) };
-  const dim = layout === "vertical" ? portrait : landscape;
+  layout: Layout;
+  perCharColors: ColorKey[];
+  useUnifiedColor: boolean;
+  unifiedColor: ColorKey;
+};
 
-  const chars = useMemo(() => clampChars(text), [text]);
-  const [l1, l2] = useMemo(() => splitTwoLines(chars), [chars]);
+const DEFAULT_TEXT = "麻雀";
 
-  // 各行の色配列（行の文字数ぶん切り出す）
-  const colorsL1 = colors.slice(0, l1.length);
-  const colorsL2 = colors.slice(l1.length, l1.length + l2.length);
+const NameTilePreview: React.FC<Props> = ({
+  text,
+  layout,
+  perCharColors,
+  useUnifiedColor,
+  unifiedColor,
+}) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
 
-  // 牌のスタイル（アイボリー、面取り、インナーシャドウ風）
-  const tileStyle: React.CSSProperties = {
-    width: dim.w,
-    height: dim.h,
-    borderRadius: Math.round(24 * size),
-    background: "linear-gradient(160deg, #fffffb 0%, #f6f2e9 60%, #e8e2d4 100%)",
-    border: "1px solid #d7d2c6",
-    boxShadow:
-      "0 10px 24px rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.8), inset 0 -4px 8px rgba(0,0,0,.06)",
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const r = entry.contentRect;
+      setBox({ w: r.width, h: r.height });
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const chars = useMemo(() => splitChars(text || DEFAULT_TEXT), [text]);
+  const [lineR, lineL] = useMemo(() => splitToLines(chars), [chars]);
+
+  // 色配列（行ごとに切り出し）
+  const colorsBase = useUnifiedColor
+    ? new Array(chars.length).fill(unifiedColor) as ColorKey[]
+    : ensureLen(perCharColors, chars.length);
+
+  const colorsR = colorsBase.slice(0, lineR.length);
+  const colorsL = colorsBase.slice(lineR.length, lineR.length + lineL.length);
+
+  // 文字サイズ：枠の90%以内で自動調整（1文字時ははみ出し防止係数を強めに）
+  const fontSizePx = useMemo(() => {
+    const pad = 24; // 内側余白
+    const w = Math.max(0, box.w - pad * 2);
+    const h = Math.max(0, box.h - pad * 2);
+    if (!w || !h) return 48;
+
+    const oneLine = chars.length <= 4;
+    if (layout === "vertical") {
+      const columns = oneLine ? 1 : 2;
+      const colW = w / columns;
+      const perColChars = oneLine ? chars.length : Math.ceil(chars.length / 2);
+      let size = Math.min(colW * 0.9, (h / perColChars) * 0.9);
+      if (chars.length === 1) size *= 0.85; // 1文字のはみ出し保険
+      if (!oneLine) size *= 0.95; // 2列時に少し余裕
+      return Math.floor(size);
+    } else {
+      const rows = oneLine ? 1 : 2;
+      const rowH = h / rows;
+      const perRowChars = oneLine ? chars.length : Math.ceil(chars.length / 2);
+      let size = Math.min((w / perRowChars) * 0.9, rowH * 0.9);
+      if (chars.length === 1) size *= 0.85;
+      if (!oneLine) size *= 0.95;
+      return Math.floor(size);
+    }
+  }, [box, layout, chars.length]);
+
+  // 牌のアスペクト比
+  const ratio = layout === "vertical" ? 28 / 21 : 21 / 28; // width / height
+  const renderChar = (ch: string, key: string | number, color: ColorKey) => {
+    const c = COLORS[color];
+    const style: React.CSSProperties = c.gradient
+      ? { backgroundImage: c.css, WebkitBackgroundClip: "text", color: "transparent" }
+      : { color: c.css };
+    return (
+      <span key={key} style={style}>
+        {ch}
+      </span>
+    );
   };
-
-  const innerStyle: React.CSSProperties = {
-    position: "absolute",
-    inset: Math.round(18 * size),
-    borderRadius: Math.round(16 * size),
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.25))",
-    boxShadow: "inset 0 2px 6px rgba(0,0,0,.06)",
-  };
-
-  const textCommon: React.CSSProperties = {
-    fontFamily: fontStack || "system-ui, 'Noto Sans JP', sans-serif",
-    fontWeight: 700,
-    letterSpacing: layout === "horizontal" ? "0.02em" : "0.05em",
-  };
-
-  const lineWrap: React.CSSProperties =
-    layout === "vertical"
-      ? {
-          display: "flex",
-          gap: Math.round(10 * size),
-          writingMode: "vertical-rl",
-          textOrientation: "upright",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "80%",
-        }
-      : {
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: Math.round(8 * size),
-          width: "80%",
-        };
-
-  const lineStyle: React.CSSProperties =
-    layout === "vertical"
-      ? { fontSize: Math.round(48 * size), lineHeight: 1.3, ...textCommon }
-      : { fontSize: Math.round(46 * size), lineHeight: 1.15, ...textCommon };
-
-  // 1文字ずつ色適用
-  const renderColoredText = (line: string, cols: ColorKey[]) => (
-    <span aria-label={line}>
-      {Array.from(line).map((ch, i) => (
-        <span key={i} style={{ color: mapColor(cols[i] || "black") }}>
-          {ch}
-        </span>
-      ))}
-    </span>
-  );
 
   return (
-    <div
-      className="rounded-2xl shadow"
-      style={{
-        padding: Math.round(8 * size),
-        background: "transparent",
-        display: "inline-block",
-      }}
-    >
-      <div style={tileStyle} aria-label="mahjong tile preview">
-        <div style={innerStyle} />
-        <div style={lineWrap}>
-          {/* 縦＝2列（右→左）／横＝2行（上→下） */}
+    <div className="w-full">
+      <div
+        ref={containerRef}
+        className="mx-auto bg-white shadow-xl"
+        style={{
+          aspectRatio: `${ratio} / 1`,
+          borderRadius: 18,
+          border: "2px solid #111",
+          overflow: "hidden",
+        }}
+      >
+        <div className="h-full w-full" style={{ padding: 18 }}>
           {layout === "vertical" ? (
-            <>
-              {/* 1列目（右側） */}
-              <div style={lineStyle}>{renderColoredText(l1, colorsL1)}</div>
-              {/* 2列目（左側／空なら非表示） */}
-              {l2 && <div style={lineStyle}>{renderColoredText(l2, colorsL2)}</div>}
-            </>
+            <div className="h-full w-full flex flex-row-reverse gap-2">
+              {/* 右列 */}
+              <div
+                className="flex-1 h-full flex items-center justify-center"
+                style={{
+                  writingMode: "vertical-rl",
+                  fontSize: fontSizePx,
+                  lineHeight: 1,
+                  fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif",
+                }}
+              >
+                {lineR.map((ch, i) => renderChar(ch, i, colorsR[i] || "black"))}
+              </div>
+              {/* 左列 */}
+              {lineL.length > 0 && (
+                <div
+                  className="flex-1 h-full flex items-center justify-center"
+                  style={{
+                    writingMode: "vertical-rl",
+                    fontSize: fontSizePx,
+                    lineHeight: 1,
+                    fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif",
+                  }}
+                >
+                  {lineL.map((ch, i) => renderChar(ch, `L-${i}`, colorsL[i] || "black"))}
+                </div>
+              )}
+            </div>
           ) : (
-            <>
-              {/* 1行目（上段） */}
-              <div style={lineStyle}>{renderColoredText(l1, colorsL1)}</div>
-              {/* 2行目（下段／空なら非表示） */}
-              {l2 && <div style={lineStyle}>{renderColoredText(l2, colorsL2)}</div>}
-            </>
+            <div className="h-full w-full flex flex-col justify-center gap-2">
+              {/* 1行目（右→左で画面上は普通に並べる） */}
+              <div
+                className="w-full text-center"
+                style={{ fontSize: fontSizePx, lineHeight: 1, fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif" }}
+              >
+                {lineR.map((ch, i) => renderChar(ch, i, colorsR[i] || "black"))}
+              </div>
+              {/* 2行目 */}
+              {lineL.length > 0 && (
+                <div
+                  className="w-full text-center"
+                  style={{ fontSize: fontSizePx, lineHeight: 1, fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif" }}
+                >
+                  {lineL.map((ch, i) => renderChar(ch, `H-${i}`, colorsL[i] || "black"))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default NameTilePreview;
