@@ -70,8 +70,8 @@ const renderColorBar = (css: string) => {
       aria-hidden
       className="inline-block mr-2 align-[-1px] rounded-sm"
       style={{
-        width: 10,
-        height: 14,
+        width: 12,
+        height: 16,
         background: isGrad ? undefined : css,
         backgroundImage: isGrad ? css : undefined,
         border: "1px solid #e5e7eb",
@@ -86,39 +86,50 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const selectRef = useRef<HTMLDivElement | null>(null);
   const scrollToSelect = () => selectRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  // フロー・バリアント
+  // ====== ステート ======
   const [flow, setFlow] = useState<Flow>("original_single");
   const [variant, setVariant] = useState<"standard" | "mm30" | "default">("standard");
 
-  // デザイン
   const [designType, setDesignType] = useState<"name_print" | "bring_own" | "commission">("name_print");
   const [text, setText] = useState("麻雀");
   const [layout, setLayout] = useState<Layout>("vertical");
   const [fontKey, setFontKey] = useState<FontKey>("ta-fuga-fude");
   const [note, setNote] = useState("");
 
-  // 色
   const [useUnifiedColor, setUseUnifiedColor] = useState(true);
   const [unifiedColor, setUnifiedColor] = useState<ColorKey>("black");
   const [perCharColors, setPerCharColors] = useState<ColorKey[]>(["black", "black", "black", "black"]);
 
-  // 数量
   const [qty, setQty] = useState(1);
 
-  // 持ち込み
   const [bringOwnColorCount, setBringOwnColorCount] = useState<number>(1);
   const [files, setFiles] = useState<{ id: string; src: string; name: string; type: "image" | "file" }[]>([]);
+  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
+    const fs = Array.from(e.target.files || []);
+    const ok = fs.filter((f) => ALLOWED.includes((f.name.split(".").pop() || "").toLowerCase()));
+    const mapped = ok.map((f) => {
+      const isImg = f.type.startsWith("image/") && f.type !== "image/heic";
+      return {
+        id: `${f.name}_${f.size}_${Math.random().toString(36).slice(2)}`,
+        name: f.name,
+        src: isImg ? URL.createObjectURL(f) : "",
+        type: isImg ? "image" : "file",
+      } as const;
+    });
+    setFiles((prev) => [...prev, ...mapped]);
+    e.currentTarget.value = "";
+  };
+  const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
 
-  // オプション
   const [optKeyholder, setOptKeyholder] = useState(false);
   const [optKiribako4, setOptKiribako4] = useState(false);
 
-  // ミニカート
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [miniCartOpen, setMiniCartOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // ----- 単価算出 -----
+  // ====== 単価・明細 ======
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
     const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
@@ -183,7 +194,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   const optionsUnit = extraDetails.reduce((s, d) => s + d.amount, 0);
 
-  // 割引
+  // ====== 割引 ======
   const discountRate = useMemo(() => {
     if (flow === "original_single") return qty >= 10 ? 0.15 : qty >= 5 ? 0.1 : 0;
     if (flow === "fullset") return qty >= 5 ? 0.2 : 0;
@@ -202,26 +213,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     return `オリジナル麻雀牌（${variant === "standard" ? "28mm" : "30mm"}${flow === "fullset" ? "／フルセット" : ""}）`;
   }, [flow, variant]);
 
-  // ----- ファイル選択 -----
-  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
-    const fs = Array.from(e.target.files || []);
-    const ok = fs.filter((f) => ALLOWED.includes((f.name.split(".").pop() || "").toLowerCase()));
-    const mapped = ok.map((f) => {
-      const isImg = f.type.startsWith("image/") && f.type !== "image/heic";
-      return {
-        id: `${f.name}_${f.size}_${Math.random().toString(36).slice(2)}`,
-        name: f.name,
-        src: isImg ? URL.createObjectURL(f) : "",
-        type: isImg ? "image" : "file",
-      } as const;
-    });
-    setFiles((prev) => [...prev, ...mapped]);
-    e.currentTarget.value = "";
-  };
-  const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
-
-  // ----- カート追加（実データを持つ） -----
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
@@ -241,17 +232,379 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit);
 
-  // ----- UI -----
+  // ====== 表示 ======
   return (
     <div style={{ paddingBottom: BOTTOM_BAR_HEIGHT + 16 }}>
       <Hero onPrimary={scrollToSelect} onSecondary={gotoCorporate} />
 
-      {/* 以降：カテゴリ〜見積（※前回と同等のUI。変更点は addToCart の呼び先だけ） */}
-      {/* …（中略：前回お渡しした「カテゴリ」「デザイン」「サイズ」「数量」「オプション」セクションはそのまま） */}
-      {/* ------------- ここでは最後の見積セクションだけ掲載 ------------- */}
+      <section className="max-w-6xl mx-auto mt-6 space-y-6">
+        {/* 1. カテゴリ */}
+        <Card title="1. カテゴリを選択">
+          <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              type="button"
+              className={`text-left rounded-xl border p-4 transition hover:shadow ${
+                flow !== "regular" ? "border-black" : "border-neutral-200"
+              }`}
+              onClick={() => {
+                setFlow("original_single");
+                setDesignType("name_print");
+              }}
+            >
+              <div className="text-base font-semibold">オリジナル麻雀牌</div>
+              <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
+              <div className="text-[12px] text-neutral-700 mt-2">
+                あなただけのオリジナル牌。アクセサリーやギフトにおすすめ！
+              </div>
+            </button>
 
-      <section className="max-w-5xl mx-auto mt-6 space-y-6">
-        {/* 見積 */}
+            <button
+              type="button"
+              className={`text-left rounded-xl border p-4 transition hover:shadow ${
+                flow === "regular" ? "border-black" : "border-neutral-200"
+              }`}
+              onClick={() => {
+                setFlow("regular");
+                setDesignType("name_print");
+                setVariant("default");
+              }}
+            >
+              <div className="text-base font-semibold">通常牌（バラ売り）</div>
+              <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
+              <div className="text-[12px] text-neutral-700 mt-2">通常牌も1枚から購入可能。キーホルダー対応も！</div>
+            </button>
+          </div>
+
+          <div className="mt-3 text-xs text-neutral-600 space-y-1">
+            {flow === "original_single" && (
+              <>
+                <div>
+                  発送目安：<b>約2〜3週間</b>
+                </div>
+                <div>
+                  割引：<b>5個で10%</b> / <b>10個で15%</b>
+                </div>
+              </>
+            )}
+            {flow === "fullset" && (
+              <>
+                <div>
+                  発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）
+                </div>
+                <div>
+                  割引：<b>5セットで20%</b>
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
+
+        {/* 2. デザイン */}
+        {flow !== "regular" ? (
+          <Card title="2. デザイン">
+            <div className="grid md:grid-cols-2 gap-4 items-start">
+              {/* 入力側 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <label className="w-24">方式</label>
+                  <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
+                    名前入れ
+                  </Pill>
+                  <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>
+                    デザイン持ち込み
+                  </Pill>
+                  <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>
+                    デザイン依頼
+                  </Pill>
+                </div>
+
+                {designType === "name_print" && flow !== "fullset" && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <label className="w-24">文字</label>
+                      <input
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        className="border rounded px-3 py-2 w-60"
+                        placeholder="縦4文字／横は自動改行"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="w-24">レイアウト</label>
+                      <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>
+                        縦
+                      </Pill>
+                      <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>
+                        横
+                      </Pill>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="w-24">フォント</label>
+                      <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>
+                        萬子風
+                      </Pill>
+                      <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>
+                        ゴシック
+                      </Pill>
+                      <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>
+                        明朝
+                      </Pill>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="w-24">色指定</label>
+                        <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>
+                          一括指定
+                        </Pill>
+                        <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>
+                          1文字ずつ
+                        </Pill>
+                      </div>
+
+                      {useUnifiedColor ? (
+                        <div className="flex flex-wrap gap-2 pl-24">
+                          {COLOR_LIST.map((c) => (
+                            <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
+                              {renderColorBar(c.css)}
+                              {c.label}
+                            </Pill>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="pl-24 space-y-2">
+                          {splitChars(text || "麻雀").map((ch, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <div className="w-6 text-center text-sm">{ch}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {COLOR_LIST.map((c) => (
+                                  <Pill
+                                    key={c.key}
+                                    active={(perCharColors[idx] || "black") === c.key}
+                                    onClick={() => {
+                                      const arr = perCharColors.slice();
+                                      arr[idx] = c.key;
+                                      setPerCharColors(arr);
+                                    }}
+                                  >
+                                    {renderColorBar(c.css)}
+                                    {c.label}
+                                  </Pill>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {designType === "bring_own" && (
+                  <>
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">ファイル選択（複数可）</div>
+                      <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border cursor-pointer hover:bg-neutral-50">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,application/pdf,.psd,.ai,.tiff,.tif,.heic"
+                          onChange={onPickFiles}
+                          className="hidden"
+                        />
+                        <span>ファイル選択</span>
+                      </label>
+
+                      {files.length > 0 && (
+                        <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                          {files.map((f) => (
+                            <div key={f.id} className="relative">
+                              {f.type === "image" ? (
+                                <img className="w-full h-24 object-cover rounded border" src={f.src} alt={f.name} />
+                              ) : (
+                                <div className="w-full h-24 flex items-center justify-center border rounded bg-neutral-100 text-neutral-600">
+                                  {f.name.split(".").pop()?.toUpperCase()}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                className="absolute top-1 right-1 px-2 py-0.5 rounded bg-black/75 text-white text-xs"
+                                onClick={() => removeFile(f.id)}
+                              >
+                                削除
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-2">
+                      <label className="text-sm">色数</label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={bringOwnColorCount}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setBringOwnColorCount(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+                          }}
+                          className="border rounded px-3 py-2 w-24"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                        />
+                        <span className="text-xs text-neutral-600">※ 追加1色ごとに+¥200</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm mb-1">備考</label>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full h-56 border rounded-xl p-3"
+                    placeholder="ご希望・注意点など（任意）"
+                  />
+                </div>
+              </div>
+
+              {/* プレビュー側 */}
+              <div>
+                {designType === "name_print" && flow !== "fullset" ? (
+                  <NameTilePreview
+                    text={text || "麻雀"}
+                    layout={layout}
+                    useUnifiedColor={useUnifiedColor}
+                    unifiedColor={unifiedColor}
+                    perCharColors={perCharColors}
+                    fontKey={fontKey}
+                  />
+                ) : (
+                  <div className="text-sm text-neutral-600">持ち込み・依頼の場合はプレビューは表示されません。</div>
+                )}
+                <p className="text-xs text-neutral-500 mt-3">
+                  プレビューはイメージです。色味などは実際と異なる可能性がございます。
+                </p>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card title="2. 牌の選択（通常牌）">
+            <RegularTilePreview />
+          </Card>
+        )}
+
+        {/* 3. サイズ */}
+        {(flow === "original_single" || flow === "fullset") && (
+          <Card title="3. サイズ選択">
+            <div className="flex gap-2">
+              <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>
+                28mm
+              </Pill>
+              <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>
+                30mm
+              </Pill>
+            </div>
+
+            <details className="mt-3">
+              <summary className="cursor-pointer select-none text-sm font-medium">対応機種</summary>
+              <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
+                {variant === "standard" ? (
+                  <>
+                    <div>
+                      <div className="font-semibold mb-1">対応機種（28mm）</div>
+                      <ul className="list-disc ml-5 space-y-0.5">
+                        <li>AMOS REXX</li>
+                        <li>AMOS REXX2</li>
+                        <li>AMOSアルティマ</li>
+                        <li>AMOSセヴィア</li>
+                        <li>AMOSセヴィアHD</li>
+                        <li>AMOSヴィエラ</li>
+                        <li>AMOSシャルム</li>
+                        <li>AMOSジョイ</li>
+                        <li>AMOSキューブ</li>
+                        <li>AMOSキューブHD</li>
+                        <li>ニンジャB4 HD / STANDARD</li>
+                      </ul>
+                      <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <div className="font-semibold mb-1">対応機種（30mm）</div>
+                      <ul className="list-disc ml-5 space-y-0.5">
+                        <li>AMOS JP2</li>
+                        <li>AMOS JPEX</li>
+                        <li>AMOS JPCOLOR</li>
+                        <li>AMOS JPDG</li>
+                      </ul>
+                      <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </details>
+          </Card>
+        )}
+
+        {/* 4. 数量 */}
+        <Card title="4. 数量">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={qty}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+              }}
+              className="border rounded px-3 py-2 w-28"
+              inputMode="numeric"
+              pattern="[0-9]*"
+            />
+            <div className="text-xs text-neutral-600">
+              {flow === "fullset"
+                ? "5セット以上で20%OFF"
+                : flow === "original_single"
+                ? "5個で10%OFF / 10個で15%OFF"
+                : ""}
+            </div>
+          </div>
+        </Card>
+
+        {/* 5. オプション */}
+        <Card title="5. オプション">
+          <div className="flex flex-col gap-3">
+            {flow !== "fullset" && (
+              <label className="inline-flex items-center gap-3 rounded-xl border px-4 py-3 hover:bg-neutral-50">
+                <input
+                  type="checkbox"
+                  checked={optKeyholder}
+                  onChange={(e) => setOptKeyholder(e.target.checked)}
+                />
+                <span className="text-sm">
+                  キーホルダー（+¥{fmt(PRICING.options.keyholder.priceIncl)} / 個）
+                </span>
+              </label>
+            )}
+            {((flow === "original_single" && variant === "standard") || flow === "regular") && (
+              <label className="inline-flex items-center gap-3 rounded-xl border px-4 py-3 hover:bg-neutral-50">
+                <input
+                  type="checkbox"
+                  checked={optKiribako4}
+                  onChange={(e) => setOptKiribako4(e.target.checked)}
+                />
+                <span className="text-sm">桐箱（4枚用 / +¥{fmt(PRICING.options.kiribako_4.priceIncl)}）</span>
+              </label>
+            )}
+          </div>
+        </Card>
+
+        {/* 6. 見積 */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -297,6 +650,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   </tr>
                 </tbody>
               </table>
+              <p className="text-xs text-neutral-500 mt-3">
+                プレビューはイメージです。色味などは実際と異なる可能性がございます。
+              </p>
             </div>
 
             <div className="flex items-end justify-end gap-2">
@@ -316,16 +672,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </button>
             </div>
           </div>
-
-          <p className="text-xs text-neutral-500 mt-3">
-            プレビューはイメージです。色味などは実際と異なる可能性がございます。
-          </p>
         </Card>
       </section>
 
-      {/* ボトムバー：画面下全面（中央に内容を寄せる） */}
-      <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
-        <div className="max-w-5xl mx-auto h-[76px] px-4 flex items-center justify-between">
+      {/* ===== ボトムバー（全幅・中央寄せ） ===== */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto h-[76px] px-4 flex items-center justify-between">
           <div className="text-sm">
             <div className="font-semibold">{productTitle}</div>
             <div className="text-neutral-600">
@@ -346,12 +698,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         </div>
       </div>
 
-      {/* ミニカート：ボトムバーの“上”にセンター配置 */}
+      {/* ===== ミニカート（ボトムバー上・センター） ===== */}
       {miniCartOpen && (
         <div className="fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMiniCartOpen(false)} aria-hidden />
           <div
-            className="absolute left-1/2 -translate-x-1/2 w-[min(640px,92vw)] bg-white rounded-2xl shadow-2xl p-4"
+            className="absolute left-1/2 -translate-x-1/2 w-[min(680px,92vw)] bg-white rounded-2xl shadow-2xl p-4"
             style={{ bottom: BOTTOM_BAR_HEIGHT + 12 }}
           >
             <div className="flex items-center justify-between">
@@ -411,7 +763,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
 export default Shop;
 
-// 安全な乱数ID
 function cryptoRandom() {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     const arr = new Uint32Array(1);
