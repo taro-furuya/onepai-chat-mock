@@ -2,10 +2,9 @@
 import React, { useState } from "react";
 
 /**
- * one牌｜AIチャット購入体験 モック（App Shell / v1）
- * - まずはデプロイ確認用の最小構成
- * - 3ビュー（ショップ / 入稿規定 / 法人問い合わせ）をタブ切替で表示
- * - 後で本実装を views/* に差し替えていく前提
+ * one牌｜AIチャット購入体験（最小モック / 分割前ベース）
+ * - まずは GitHub Pages にデプロイして表示確認できる内容。
+ * - 後で views/ や components/ に切り出していく想定。
  */
 
 type View = "shop" | "guidelines" | "corporate";
@@ -14,54 +13,89 @@ export default function App() {
   const [view, setView] = useState<View>("shop");
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5]">
+    <div className="min-h-screen bg-neutral-50 text-neutral-900">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="font-semibold">one牌</div>
-          <nav className="flex gap-2 text-sm">
-            <button
-              className={`px-3 py-1 rounded ${view === "shop" ? "bg-black text-white" : "border"}`}
-              onClick={() => setView("shop")}
-            >
-              ショップ
-            </button>
-            <button
-              className={`px-3 py-1 rounded ${view === "guidelines" ? "bg-black text-white" : "border"}`}
-              onClick={() => setView("guidelines")}
-            >
-              入稿規定
-            </button>
-            <button
-              className={`px-3 py-1 rounded ${view === "corporate" ? "bg-black text-white" : "border"}`}
-              onClick={() => setView("corporate")}
-            >
-              法人お問い合わせ
-            </button>
+          <nav className="flex items-center gap-2 text-sm">
+            <Tab active={view === "shop"} onClick={() => setView("shop")}>ショップ</Tab>
+            <Tab active={view === "guidelines"} onClick={() => setView("guidelines")}>入稿規定</Tab>
+            <Tab active={view === "corporate"} onClick={() => setView("corporate")}>法人お問い合わせ</Tab>
           </nav>
         </div>
       </header>
 
       {/* Body */}
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <Hero />
+      <main className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
+        <Hero onPrimary={() => setView("shop")} onSecondary={() => setView("corporate")} />
 
-        {view === "shop" && <ShopStub />}
-        {view === "guidelines" && <GuidelinesStub />}
-        {view === "corporate" && <CorporateStub />}
-
-        {/* フッタ（最低限） */}
-        <footer className="text-center text-xs text-neutral-500 py-8">
-          © {new Date().getFullYear()} one牌 mock
-        </footer>
+        {view === "shop" && <ShopView />}
+        {view === "guidelines" && <GuidelinesView />}
+        {view === "corporate" && <CorporateView />}
       </main>
+
+      {/* Footer (簡易) */}
+      <footer className="py-8 text-center text-xs text-neutral-500">
+        © {new Date().getFullYear()} one牌 mock
+      </footer>
     </div>
   );
 }
 
-/* ------- 以下は “まずは表示確認” 用のスタブ。後で views/* へ差し替えます。 ------- */
+/* ---------------- UI parts (あとで components/ へ分割予定) ---------------- */
 
-function Hero() {
+function Tab({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1 rounded ${
+        active ? "bg-black text-white" : "border hover:bg-neutral-50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Card({
+  title,
+  children,
+  right,
+}: {
+  title?: string;
+  children: React.ReactNode;
+  right?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border shadow-sm bg-white p-4 md:p-6">
+      {title && (
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base md:text-lg font-semibold">{title}</h2>
+          {right}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function Hero({
+  onPrimary,
+  onSecondary,
+}: {
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
   return (
     <section className="rounded-2xl border shadow-sm overflow-hidden">
       <div className="relative">
@@ -72,85 +106,126 @@ function Hero() {
               one牌｜AIチャット購入体験 モック
             </h1>
             <p className="text-neutral-200 text-xs md:text-sm mt-1">
-              まずはデプロイ確認版です。あとから本実装（分割ファイル）を流し込みます。
+              チャットの流れで、そのままオリジナル麻雀牌を注文できるUIの試作です。
             </p>
           </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onPrimary}
+              className="px-4 md:px-5 py-2 md:py-3 rounded-xl bg-white text-neutral-900 shadow text-xs md:text-base font-medium"
+            >
+              オリジナル麻雀牌を作ってみる
+            </button>
+            <button
+              type="button"
+              onClick={onSecondary}
+              className="hidden md:inline-block px-4 md:px-5 py-2 md:py-3 rounded-xl bg-white/90 text-neutral-900 shadow text-xs md:text-base font-medium"
+            >
+              法人お問い合わせ
+            </button>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function Card({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border shadow-sm bg-white p-4 md:p-6">
-      <h2 className="text-base md:text-lg font-semibold mb-2">{title}</h2>
-      {children}
-    </section>
-  );
-}
+/* ---------------- Views (あとで src/views へ分割予定) ---------------- */
 
-function ShopStub() {
+function ShopView() {
   return (
-    <Card title="ショップ（モック最小版）">
+    <Card title="ショップ（最小モック）">
       <p className="text-sm text-neutral-700">
-        ここに「AIチャット購入体験」の本体 UI を差し込みます。
-        <br />
-        次のステップで
-        <code className="px-1 py-0.5 bg-neutral-100 rounded mx-1">views/Shop.tsx</code>
-        を作成し、App から読み込む形に差し替えます。
+        ここに「カテゴリ選択 → デザイン確認 → 注文情報へ反映 → カート追加」の本格UIを実装していきます。
+        まずはデプロイ確認用にシンプルな見た目にしてあります。
       </p>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-xl border p-3">
-          <div className="font-medium">オリジナル麻雀牌</div>
-          <div className="text-xs text-neutral-500 mt-1">
-            あなただけのオリジナル牌が作成できます。アクセサリーやギフトにおすすめ！
-          </div>
-        </div>
-        <div className="rounded-xl border p-3">
-          <div className="font-medium">通常牌（バラ売り）</div>
-          <div className="text-xs text-neutral-500 mt-1">
-            通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
-          </div>
-        </div>
+      {/* 触れる要素が何か一つあるとデプロイ確認がしやすいので簡易カウンタを置いています */}
+      <div className="mt-4">
+        <MiniCounter />
+      </div>
+
+      <div className="mt-6 text-xs text-neutral-500">
+        ※ 本番UIは <code>src/views/</code> と <code>src/components/</code> に分割して追加していきます。
       </div>
     </Card>
   );
 }
 
-function GuidelinesStub() {
+function GuidelinesView() {
   return (
-    <Card title="入稿規定（要点）">
+    <Card title="入稿規定">
       <ul className="list-disc ml-5 space-y-1 text-sm text-neutral-800">
-        <li>推奨形式：AI / PDF（アウトライン化）/ PSD / PNG・JPG（300dpi以上）</li>
-        <li>デザインデータは<strong>白黒二値化</strong>でご用意ください。</li>
-        <li>最小線幅は<strong>0.3mm以上</strong>を推奨します。</li>
+        <li>推奨形式：AI / PDF（アウトライン化）/ PSD / PNG・JPG（解像度300dpi以上）</li>
+        <li>デザインデータは<strong>白黒二値化</strong>したものでご用意ください。</li>
+        <li>
+          細すぎる線などは潰れてしまうため、最小線幅は<strong>0.3mm以上</strong>。色入れ面積が小さいと色が入らない場合があります。
+        </li>
+        <li>白色以外が隣接する場合は、色の間に<strong>凸部</strong>を作る必要があります。</li>
+        <li>素材の小傷が残る場合があります。ご了承ください。</li>
       </ul>
+
+      <h3 className="font-semibold mt-6 mb-1">著作権・各種権利</h3>
+      <p className="text-sm text-neutral-800">
+        ご入稿デザインは第三者の権利を侵害しないものとみなし、万一争いが生じた場合も当社は責任を負いません。
+      </p>
     </Card>
   );
 }
 
-function CorporateStub() {
+function CorporateView() {
   return (
-    <Card title="法人向けお問い合わせ（ダミー）">
+    <Card title="法人向けお問い合わせ">
+      <p className="text-sm text-neutral-600 mb-3">
+        製作ロット・お見積もり・納期のご相談はこちらから。
+      </p>
       <form className="grid md:grid-cols-2 gap-2">
         <input className="border rounded px-3 py-2" placeholder="会社名" />
         <input className="border rounded px-3 py-2" placeholder="ご担当者名" />
-        <input className="border rounded px-3 py-2 md:col-span-2" placeholder="メールアドレス" />
-        <textarea className="border rounded px-3 py-2 md:col-span-2 h-24" placeholder="お問い合わせ内容" />
+        <input
+          className="border rounded px-3 py-2 md:col-span-2"
+          placeholder="メールアドレス"
+        />
+        <textarea
+          className="border rounded px-3 py-2 md:col-span-2 h-24"
+          placeholder="お問い合わせ内容"
+        />
         <div className="md:col-span-2 flex justify-end">
-          <button type="button" className="px-4 py-2 rounded-xl bg-black text-white">
+          <button
+            type="button"
+            className="px-4 py-2 rounded-xl bg-black text-white"
+            onClick={() => alert("ダミー送信です")}
+          >
             送信（ダミー）
           </button>
         </div>
       </form>
     </Card>
+  );
+}
+
+/* ---------------- 小さな動作確認用コンポーネント ---------------- */
+
+function MiniCounter() {
+  const [n, setN] = useState(1);
+  return (
+    <div className="inline-flex items-center gap-2">
+      <button
+        type="button"
+        className="px-3 py-1.5 rounded border"
+        onClick={() => setN((v) => Math.max(0, v - 1))}
+      >
+        −
+      </button>
+      <span className="min-w-[3ch] text-center">{n}</span>
+      <button
+        type="button"
+        className="px-3 py-1.5 rounded border"
+        onClick={() => setN((v) => v + 1)}
+      >
+        ＋
+      </button>
+    </div>
   );
 }
