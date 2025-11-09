@@ -1,513 +1,300 @@
-// src/App.tsx
-import React, { useMemo, useRef, useState, useLayoutEffect } from "react";
+/*
+  one牌｜AIチャット購入体験 モック（プレビュー改善版 v7.4.1）
+  - 牌プレビューを本物っぽく：角丸・単一枠線・陰影。サイズは文字数で自動拡大。
+  - レイアウト：縦＝縦書き／横＝牌を横長にし横書き。
+  - 文字順の逆転バグを修正（入力順そのまま）。
+  - 1文字ずつ色選択（常時展開）。レインボーは上下グラデーションで描画。
+  - 4文字超で自動2行（縦は2列、横は2行）。
+*/
 
-/** ========== 型とユーティリティ ========== **/
-type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
-const PALETTE: { key: ColorKey; label: string; style: React.CSSProperties }[] = [
-  { key: "black", label: "黒", style: { background: "#0a0a0a" } },
-  { key: "red", label: "赤", style: { background: "#d10f1b" } },
-  { key: "blue", label: "青", style: { background: "#1f57c3" } },
-  { key: "green", label: "緑", style: { background: "#0d7a3a" } },
-  { key: "pink", label: "ピンク", style: { background: "#e75480" } },
-  {
-    key: "rainbow",
-    label: "レインボー",
-    style: {
-      background:
-        "linear-gradient(90deg,#d10f1b,#ffa500,#ffd400,#15b300,#1f57c3,#8b00ff)",
-    },
-  },
-];
+import React, { useMemo, useState } from "react";
 
-function mapColorStyle(c: ColorKey): React.CSSProperties {
-  if (c === "rainbow") {
-    return {
-      background:
-        "linear-gradient(90deg,#d10f1b,#ffa500,#ffd400,#15b300,#1f57c3,#8b00ff)",
-      WebkitBackgroundClip: "text",
-      backgroundClip: "text",
-      color: "transparent",
-    } as React.CSSProperties;
-  }
-  const color =
-    c === "black"
-      ? "#0a0a0a"
-      : c === "red"
-      ? "#d10f1b"
-      : c === "blue"
-      ? "#1f57c3"
-      : c === "green"
-      ? "#0d7a3a"
-      : "#e75480";
-  return { color };
+// ===== 色ユーティリティ =====
+const PALETTE = [
+  { key: "black", label: "ブラック", css: "#0a0a0a" },
+  { key: "red", label: "レッド", css: "#d10f1b" },
+  { key: "blue", label: "ブルー", css: "#1f57c3" },
+  { key: "green", label: "グリーン", css: "#0d7a3a" },
+  { key: "pink", label: "ピンク", css: "#e75480" },
+  // レインボーは上下グラデーション
+  { key: "rainbow", label: "レインボー", css: "linear-gradient(180deg,#d10f1b,#ff7a00,#ffd400,#1bb34a,#1f57c3,#7a2bc2)" },
+] as const;
+
+type ColorKey = (typeof PALETTE)[number]["key"];
+const colorCss = (k: ColorKey) => PALETTE.find((p) => p.key === k)!.css;
+
+// ====== 文字分割（4超で自動2行/2列） ======
+function splitForTwoLines(chars: string[]) {
+  if (chars.length <= 4) return [chars];
+  const half = Math.ceil(chars.length / 2);
+  return [chars.slice(0, half), chars.slice(half)];
 }
 
-function sliceToTwoLines(src: string): [string, string] {
-  // 4文字を超えたら 4 + 残り で2行へ
-  const arr = Array.from(src);
-  if (arr.length <= 4) return [arr.join(""), ""];
-  return [arr.slice(0, 4).join(""), arr.slice(4).join("")];
-}
-
-function fillColors(perChar: ColorKey[], length: number): ColorKey[] {
-  const base = perChar.length ? perChar.slice() : [];
-  while (base.length < length) base.push("black");
-  return base.slice(0, length);
-}
-
-/** ========== 牌プレビュー ========== **/
-type TileProps = {
-  lines: [string, string]; // 1行目/2行目（2行目は空文字の可）
-  colors: ColorKey[]; // 各文字色（行またぎで 1行目→2行目の順）
-  layout: "vertical" | "horizontal";
-  fontFamily: string;
-};
-
-const MahjongTile: React.FC<TileProps> = ({
-  lines,
+// ====== 牌プレビュー ======
+function TilePreview({
+  text,
+  layout, // "vertical" | "horizontal"
+  font,
   colors,
-  layout,
-  fontFamily,
-}) => {
-  const outerRef = useRef<HTMLDivElement>(null);
-  const [fontSize, setFontSize] = useState(64); // 初期値は後で調整
+}: {
+  text: string;
+  layout: "vertical" | "horizontal";
+  font: string;
+  colors: ColorKey[];
+}) {
+  const chars = useMemo(() => Array.from(text || ""), [text]);
+  const groups = useMemo(() => splitForTwoLines(chars), [chars]);
 
-  // 自動フィット：枠のサイズと文字数から大まかに算出（安定・高速）
-  useLayoutEffect(() => {
-    const el = outerRef.current;
-    if (!el) return;
-    const box = el.getBoundingClientRect();
-    // 牌の内側マージン
-    const pad = Math.min(box.width, box.height) * 0.12;
-    const innerW = box.width - pad * 2;
-    const innerH = box.height - pad * 2;
+  // 牌サイズ（縦：高さ>幅、横：幅>高さ）
+  // 牌の縦×横 比率：縦=28:21 / 横=21:28（CSSのaspect-ratioは width/height）
+  const aspect = layout === "vertical" ? 21 / 28 : 28 / 21; // おおよそ実寸比
 
-    const line1 = Array.from(lines[0]).length || 1;
-    const line2 = Array.from(lines[1]).length;
-    const maxLineChars = Math.max(line1, line2);
+  // 文字サイズの概算：内側の短辺 / 文字数（行/列）で調整
+  const perCol = groups[0]?.length || 1;
+  const perRow = groups.length; // 1 または 2
+  const baseShortSide = 340; // できるだけ大きく
+  const fontSize = Math.max(
+    28,
+    Math.floor((baseShortSide / Math.max(perCol, 1)) * (layout === "vertical" ? 1.28 : 1.22)) / perRow
+  );
 
-    // 縦：縦書き1～2列／横：横書き1～2行として概算
-    const lineCount = lines[1] ? 2 : 1;
+  // CSS ヘルパ（レインボー塗り）
+  const colorStyle = (k: ColorKey): React.CSSProperties =>
+    k === "rainbow"
+      ? { background: colorCss(k), WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }
+      : { color: colorCss(k) as string };
 
-    if (layout === "vertical") {
-      // 1文字のボックスサイズ（内枠の高さを縦に均等割）
-      const sizeByHeight = innerH / (maxLineChars + 0.2);
-      // 横に 1～2 列ある想定なので、文字の幅にも余裕を見る
-      const sizeByWidth = innerW / (lineCount + 0.4);
-      setFontSize(Math.floor(Math.min(sizeByHeight, sizeByWidth)));
-    } else {
-      // 横の場合は 1～2 行に分ける
-      const sizeByHeight = innerH / (lineCount + 0.1);
-      const sizeByWidth = innerW / (maxLineChars + 0.2);
-      setFontSize(Math.floor(Math.min(sizeByHeight, sizeByWidth)));
-    }
-  }, [lines, layout]);
+  // 1文字ごとの色取得（不足時は黒）
+  const colorAt = (index: number): ColorKey => (colors[index] ? colors[index] : "black");
 
-  // 行を1つの文字配列に
-  const chars = useMemo(() => {
-    const a = Array.from(lines[0]);
-    const b = Array.from(lines[1] || "");
-    return [a, b] as [string[], string[]];
-  }, [lines]);
-
-  const content = (
+  return (
     <div
+      className="mx-auto select-none shadow-[0_8px_20px_rgba(0,0,0,.08)] bg-white"
       style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
+        width: layout === "vertical" ? 360 : 580,
+        aspectRatio: `${aspect}`,
         borderRadius: 18,
-        background: "#fff",
-        boxShadow: "inset 0 0 0 2px #111, 0 8px 24px rgba(0,0,0,0.15)",
+        border: "3px solid #111", // 単一の枠線
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        padding: 10,
       }}
     >
-      {/* 面取り風の内枠 */}
-      <div
+      {/* 文字ブロック */}
+      {layout === "vertical" ? (
+        <div style={{ display: "flex", gap: 8 }}>
+          {/* 2列（必要時）。列の並びは左→右で入力順どおり */}
+          {groups.map((col, ci) => (
+            <div
+              key={ci}
+              style={{
+                writingMode: "vertical-rl",
+                textOrientation: "upright",
+                fontFamily: font,
+                fontSize,
+                lineHeight: 1.05,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              {col.map((ch, i) => (
+                <span key={i} style={colorStyle(colorAt(ci * (groups[0].length || 0) + i))}>{ch}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "92%", textAlign: "center" }}>
+          {groups.map((row, ri) => (
+            <div
+              key={ri}
+              style={{
+                fontFamily: font,
+                fontSize,
+                lineHeight: 1.0,
+                display: "flex",
+                justifyContent: "center",
+                gap: 8,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {row.map((ch, i) => (
+                <span key={i} style={colorStyle(colorAt(ri * (groups[0].length || 0) + i))}>{ch}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ====== 色スウォッチ ======
+function ColorOption({
+  active,
+  swatch,
+  onClick,
+}: {
+  active: boolean;
+  swatch: (typeof PALETTE)[number];
+  onClick: () => void;
+}) {
+  const isRainbow = swatch.key === "rainbow";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2 py-1 rounded-md border ${active ? "border-neutral-900" : "border-neutral-300"}`}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+      title={swatch.label}
+    >
+      <span
+        aria-hidden
         style={{
-          position: "absolute",
-          inset: 10,
-          borderRadius: 14,
-          boxShadow: "inset 0 0 0 2px #111",
+          width: 14,
+          height: 14,
+          borderRadius: "50%",
+          background: isRainbow ? (swatch.css as string) : undefined,
+          backgroundImage: isRainbow ? (swatch.css as string) : undefined,
+          backgroundColor: isRainbow ? undefined : (swatch.css as string),
+          display: "inline-block",
         }}
       />
-
-      {/* 文字 */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          fontFamily,
-          lineHeight: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          writingMode: layout === "vertical" ? "vertical-rl" : "horizontal-tb",
-          gap: layout === "vertical" ? 10 : 4,
-        }}
-      >
-        {chars.map((line, li) => (
-          <div
-            key={li}
-            style={{
-              display: "flex",
-              flexDirection: layout === "vertical" ? "column" : "row",
-              alignItems: "center",
-              justifyContent: "center",
-              // 文字間を詰め気味に
-              gap: layout === "vertical" ? 6 : 8,
-            }}
-          >
-            {line.map((ch, ci) => {
-              const color = colors[li === 0 ? ci : chars[0].length + ci] || "black";
-              return (
-                <span
-                  key={`${li}-${ci}`}
-                  style={{
-                    fontSize,
-                    fontWeight: 600,
-                    ...mapColorStyle(color),
-                  }}
-                >
-                  {ch}
-                </span>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
+      <span className="text-sm">{swatch.label}</span>
+    </button>
   );
+}
 
-  return (
-    <div
-      ref={outerRef}
-      style={{
-        width: 360,
-        height: 480,
-        borderRadius: 24,
-        padding: 12,
-        background:
-          "linear-gradient(180deg,#f9fafb,#f3f4f6 35%,#f3f4f6 65%,#e5e7eb)",
-        boxShadow:
-          "0 10px 24px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.6) inset",
-        transform: layout === "horizontal" ? "rotate(90deg)" : "none",
-        transition: "transform .25s ease",
-      }}
-    >
-      {content}
-    </div>
-  );
-};
-
-/** ========== メイン ========== **/
-const App: React.FC = () => {
+// ====== アプリ本体 ======
+export default function App() {
   const [text, setText] = useState("一刀");
   const [layout, setLayout] = useState<"vertical" | "horizontal">("vertical");
-  const [fontKey, setFontKey] = useState<"manzu" | "gothic" | "mincho">(
-    "manzu"
-  );
-  const fontStack =
-    fontKey === "manzu"
-      ? `ta-fuga-fude, "TA風雅筆", "Hiragino Mincho ProN", "Yu Mincho", serif`
-      : fontKey === "gothic"
-      ? `system-ui, -apple-system, "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif`
-      : `"Yu Mincho","Hiragino Mincho ProN",serif`;
+  const [fontKey, setFontKey] = useState("ta-fuga-fude");
 
-  // 文字列を2行に分割
-  const lines = useMemo(() => sliceToTwoLines(text.trim()), [text]);
-
-  // 1文字ごとの色（行またぎで 1行目→2行目の順）
-  const totalChars = Array.from(lines[0]).length + Array.from(lines[1]).length;
-  const [perCharColor, setPerCharColor] = useState<ColorKey[]>([]);
-  const safeColors = useMemo(
-    () => fillColors(perCharColor, totalChars || 1),
-    [perCharColor, totalChars]
-  );
-
-  // 文字ごと色のスウォッチ UI
-  const ColorPickerRow: React.FC<{ index: number; char: string }> = ({
-    index,
-    char,
-  }) => {
-    const current = safeColors[index] || "black";
-    return (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "28px repeat(6, 28px)",
-          gap: 8,
-          alignItems: "center",
-        }}
-      >
-        <div style={{ fontWeight: 600 }}>{char || "　"}</div>
-        {PALETTE.map((p) => (
-          <button
-            key={p.key}
-            title={p.label}
-            onClick={() => {
-              const next = safeColors.slice();
-              next[index] = p.key;
-              setPerCharColor(next);
-            }}
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              cursor: "pointer",
-              ...(p.style as React.CSSProperties),
-              outline:
-                current === p.key ? "2px solid #111" : "1px solid #d1d5db",
-              boxShadow:
-                current === p.key ? "0 0 0 2px #fff inset" : "none",
-            }}
-          />
-        ))}
-      </div>
-    );
+  const FONT_STACKS: Record<string, string> = {
+    "ta-fuga-fude": 'ta-fuga-fude, "TA風雅筆", "Yu Mincho", serif',
+    gothic: 'system-ui, -apple-system, "Noto Sans JP", sans-serif',
+    mincho: '"Yu Mincho", "Hiragino Mincho ProN", serif',
   };
 
-  // 1行目+2行目の配列化（色指定の一覧に使う）
-  const charList = useMemo(() => {
-    const a = Array.from(lines[0]);
-    const b = Array.from(lines[1] || "");
-    return [...a, ...b];
-  }, [lines]);
+  // 1文字ごとの色（不足分は黒で埋める）
+  const [colors, setColors] = useState<ColorKey[]>(["black", "black", "black", "black", "black", "black"]);
+  const setColorAt = (i: number, c: ColorKey) =>
+    setColors((prev) => {
+      const next = prev.slice();
+      next[i] = c;
+      return next;
+    });
+
+  const chars = Array.from(text || "");
+  const colorArray = useMemo(() => {
+    const need = Math.max(1, chars.length);
+    const out = colors.slice();
+    while (out.length < need) out.push("black");
+    return out.slice(0, need);
+  }, [colors, chars.length]);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f6f7f9",
-        color: "#111827",
-        fontFamily:
-          'system-ui, -apple-system, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"',
-      }}
-    >
-      {/* Header */}
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-          background: "rgba(255,255,255,0.9)",
-          backdropFilter: "blur(6px)",
-          borderBottom: "1px solid #e5e7eb",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1120,
-            margin: "0 auto",
-            padding: "10px 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ fontWeight: 700 }}>one牌</div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
-            プレビュー改善版（牌デザイン / 自動フィット / 1文字ごと色）
-          </div>
+    <div className="min-h-screen bg-neutral-50 text-neutral-900">
+      <header className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="font-semibold">one牌</div>
+          <nav className="text-sm text-neutral-600">AIチャット購入体験｜プレビュー改善版</nav>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1120, margin: "0 auto", padding: 16 }}>
-        {/* コントロール */}
-        <section
-          style={{
-            background: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 16,
-          }}
-        >
-          <h2 style={{ fontWeight: 700, marginBottom: 12 }}>入力</h2>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "140px 1fr",
-              gap: 12,
-              alignItems: "center",
-              marginBottom: 10,
-            }}
-          >
-            <div>文字</div>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="全角4文字を超えると2行になります"
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "10px 12px",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "140px 1fr",
-              gap: 12,
-              alignItems: "center",
-              marginBottom: 10,
-            }}
-          >
-            <div>レイアウト</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setLayout("vertical")}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: layout === "vertical" ? "#111" : "#fff",
-                  color: layout === "vertical" ? "#fff" : "#111",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                縦
-              </button>
-              <button
-                onClick={() => setLayout("horizontal")}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: layout === "horizontal" ? "#111" : "#fff",
-                  color: layout === "horizontal" ? "#fff" : "#111",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                横（牌ごと回転）
-              </button>
+      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+        {/* 入力 */}
+        <section className="rounded-2xl border bg-white p-4 md:p-6">
+          <h2 className="text-lg font-semibold mb-3">入力</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div>
+                <div className="text-sm mb-1">文字</div>
+                <input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className="border rounded-lg px-3 py-2 w-full"
+                  placeholder="例）一刀"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-sm">レイアウト</div>
+                <button
+                  className={`px-3 py-1 rounded-lg border ${layout === "vertical" ? "bg-black text-white" : ""}`}
+                  onClick={() => setLayout("vertical")}
+                >
+                  縦
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg border ${layout === "horizontal" ? "bg-black text-white" : ""}`}
+                  onClick={() => setLayout("horizontal")}
+                >
+                  横
+                </button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-sm">フォント</div>
+                <button
+                  className={`px-3 py-1 rounded-lg border ${fontKey === "ta-fuga-fude" ? "bg-black text-white" : ""}`}
+                  onClick={() => setFontKey("ta-fuga-fude")}
+                >
+                  萬子風（TA風雅筆）
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg border ${fontKey === "gothic" ? "bg-black text-white" : ""}`}
+                  onClick={() => setFontKey("gothic")}
+                >
+                  ゴシック
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg border ${fontKey === "mincho" ? "bg-black text-white" : ""}`}
+                  onClick={() => setFontKey("mincho")}
+                >
+                  明朝
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "140px 1fr",
-              gap: 12,
-              alignItems: "center",
-              marginBottom: 6,
-            }}
-          >
-            <div>フォント</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setFontKey("manzu")}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: fontKey === "manzu" ? "#111" : "#fff",
-                  color: fontKey === "manzu" ? "#fff" : "#111",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                萬子風（TA風雅筆）
-              </button>
-              <button
-                onClick={() => setFontKey("gothic")}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: fontKey === "gothic" ? "#111" : "#fff",
-                  color: fontKey === "gothic" ? "#fff" : "#111",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                ゴシック
-              </button>
-              <button
-                onClick={() => setFontKey("mincho")}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: fontKey === "mincho" ? "#111" : "#fff",
-                  color: fontKey === "mincho" ? "#fff" : "#111",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                明朝
-              </button>
+            {/* 色選択 */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium">1文字ずつ色を選択</div>
+              {Array.from(text || "").map((ch, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="w-6 text-right">{ch || "・"}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {PALETTE.map((sw) => (
+                      <ColorOption
+                        key={sw.key}
+                        swatch={sw}
+                        active={(colorArray[idx] || "black") === sw.key}
+                        onClick={() => setColorAt(idx, sw.key)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="text-xs text-neutral-600">※ デフォルトは黒。レインボーは上下グラデーションで表現します。</div>
             </div>
           </div>
         </section>
 
-        {/* プレビュー + 色指定 */}
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(360px, 420px) 1fr",
-            gap: 16,
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              borderRadius: 16,
-              padding: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 520,
-            }}
-          >
-            <MahjongTile
-              lines={lines}
-              colors={safeColors}
-              layout={layout}
-              fontFamily={fontStack}
-            />
-          </div>
-
-          <div
-            style={{
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              borderRadius: 16,
-              padding: 16,
-            }}
-          >
-            <h3 style={{ fontWeight: 700, marginBottom: 10 }}>
-              1文字ずつ色を選択
-            </h3>
-            <div style={{ display: "grid", gap: 10 }}>
-              {charList.length === 0 ? (
-                <div style={{ color: "#6b7280", fontSize: 14 }}>
-                  文字を入力すると、ここに色の選択肢が表示されます。
-                </div>
-              ) : (
-                charList.map((ch, i) => (
-                  <ColorPickerRow key={i} index={i} char={ch} />
-                ))
-              )}
-            </div>
-            <div style={{ marginTop: 12, fontSize: 12, color: "#6b7280" }}>
-              ※ デフォルトは黒。レインボーはグラデーションで表現します。
-            </div>
-          </div>
+        {/* プレビュー */}
+        <section className="rounded-2xl border bg-white p-4 md:p-6">
+          <h2 className="text-lg font-semibold mb-3">プレビュー</h2>
+          <TilePreview text={text} layout={layout} font={FONT_STACKS[fontKey]} colors={colorArray} />
         </section>
       </main>
+
+      {/* 簡易フォント埋め込み */}
+      <style>{`
+        @font-face {
+          font-family: 'ta-fuga-fude';
+          src: url('/assets/TA-Fugafude.woff2') format('woff2'), url('/assets/TA-Fugafude.woff') format('woff');
+          font-weight: 400; font-style: normal; font-display: swap;
+        }
+      `}</style>
     </div>
   );
-};
-
-export default App;
+}
