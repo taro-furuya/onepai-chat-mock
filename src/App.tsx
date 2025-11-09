@@ -1,307 +1,513 @@
 // src/App.tsx
-import React, { useMemo, useState } from "react";
-import NameTilePreview, { ColorKey } from "./components/NameTilePreview";
+import React, { useMemo, useRef, useState, useLayoutEffect } from "react";
 
-/** ---------------------------------------
- *  定数・ユーティリティ
- * ------------------------------------- */
-type Layout = "vertical" | "horizontal";
-
-const FONT_OPTIONS = [
-  // デフォルトはご要望の TA風雅筆を優先
-  { key: "ta-fuga-fude", label: "TA風雅筆（推奨）", stack: "ta-fuga-fude, sans-serif" },
-  { key: "noto", label: "Noto Sans JP", stack: "'Noto Sans JP', system-ui, sans-serif" },
-  { key: "gothic", label: "ゴシック（太め）", stack: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, Helvetica Neue, Arial, 'Apple Color Emoji','Segoe UI Emoji', 'Segoe UI Symbol', sans-serif" },
-  { key: "kyokasho", label: "教科書体 風", stack: "'TsukuARdGothic-Regular', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif" },
-  { key: "hand", label: "手書き風", stack: "'Yomogi', 'Kaisei Decol', 'M PLUS Rounded 1c', cursive, sans-serif" },
+/** ========== 型とユーティリティ ========== **/
+type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
+const PALETTE: { key: ColorKey; label: string; style: React.CSSProperties }[] = [
+  { key: "black", label: "黒", style: { background: "#0a0a0a" } },
+  { key: "red", label: "赤", style: { background: "#d10f1b" } },
+  { key: "blue", label: "青", style: { background: "#1f57c3" } },
+  { key: "green", label: "緑", style: { background: "#0d7a3a" } },
+  { key: "pink", label: "ピンク", style: { background: "#e75480" } },
+  {
+    key: "rainbow",
+    label: "レインボー",
+    style: {
+      background:
+        "linear-gradient(90deg,#d10f1b,#ffa500,#ffd400,#15b300,#1f57c3,#8b00ff)",
+    },
+  },
 ];
 
-const COLOR_OPTIONS: { key: ColorKey; label: string }[] = [
-  { key: "black", label: "黒" },
-  { key: "red", label: "赤" },
-  { key: "blue", label: "青" },
-  { key: "green", label: "緑" },
-  { key: "pink", label: "ピンク" },
-  { key: "rainbow", label: "レインボー" },
-];
-
-const ensureLen = (arr: ColorKey[], len: number): ColorKey[] => {
-  const out = arr.slice();
-  while (out.length < len) out.push(out[0] ?? "black");
-  return out.slice(0, len);
-};
-
-/** ---------------------------------------
- *  小物UI
- * ------------------------------------- */
-function Pill({
-  active,
-  children,
-  onClick,
-}: {
-  active?: boolean;
-  children: React.ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "px-3 py-1 rounded-full border text-sm",
-        active ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
+function mapColorStyle(c: ColorKey): React.CSSProperties {
+  if (c === "rainbow") {
+    return {
+      background:
+        "linear-gradient(90deg,#d10f1b,#ffa500,#ffd400,#15b300,#1f57c3,#8b00ff)",
+      WebkitBackgroundClip: "text",
+      backgroundClip: "text",
+      color: "transparent",
+    } as React.CSSProperties;
+  }
+  const color =
+    c === "black"
+      ? "#0a0a0a"
+      : c === "red"
+      ? "#d10f1b"
+      : c === "blue"
+      ? "#1f57c3"
+      : c === "green"
+      ? "#0d7a3a"
+      : "#e75480";
+  return { color };
 }
 
-/** ---------------------------------------
- *  アプリ本体
- * ------------------------------------- */
-export default function App() {
-  // カテゴリ
-  const [category, setCategory] = useState<"original" | "regular">("original");
+function sliceToTwoLines(src: string): [string, string] {
+  // 4文字を超えたら 4 + 残り で2行へ
+  const arr = Array.from(src);
+  if (arr.length <= 4) return [arr.join(""), ""];
+  return [arr.slice(0, 4).join(""), arr.slice(4).join("")];
+}
 
-  // デザイン確認（名前入れ前提のプレビューUI）
-  const [text, setText] = useState<string>("一刀");
-  const [layout, setLayout] = useState<Layout>("vertical");
-  const [fontKey, setFontKey] = useState<string>("ta-fuga-fude");
+function fillColors(perChar: ColorKey[], length: number): ColorKey[] {
+  const base = perChar.length ? perChar.slice() : [];
+  while (base.length < length) base.push("black");
+  return base.slice(0, length);
+}
 
-  // 色指定：単一色 or 1文字ずつ
-  const [usePerChar, setUsePerChar] = useState<boolean>(false);
-  const [colorsPerChar, setColorsPerChar] = useState<ColorKey[]>(["black"]);
+/** ========== 牌プレビュー ========== **/
+type TileProps = {
+  lines: [string, string]; // 1行目/2行目（2行目は空文字の可）
+  colors: ColorKey[]; // 各文字色（行またぎで 1行目→2行目の順）
+  layout: "vertical" | "horizontal";
+  fontFamily: string;
+};
 
-  // セレクトUI用（単一色選択）
-  const [singleColor, setSingleColor] = useState<ColorKey>("black");
+const MahjongTile: React.FC<TileProps> = ({
+  lines,
+  colors,
+  layout,
+  fontFamily,
+}) => {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [fontSize, setFontSize] = useState(64); // 初期値は後で調整
 
-  // NameTilePreview へ渡す colors
-  const colorsForPreview: ColorKey[] = useMemo(() => {
-    const len = Math.max(1, Array.from(text || "").length);
-    if (!usePerChar) return Array(len).fill(singleColor) as ColorKey[];
-    return ensureLen(colorsPerChar, len);
-  }, [text, usePerChar, singleColor, colorsPerChar]);
+  // 自動フィット：枠のサイズと文字数から大まかに算出（安定・高速）
+  useLayoutEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    // 牌の内側マージン
+    const pad = Math.min(box.width, box.height) * 0.12;
+    const innerW = box.width - pad * 2;
+    const innerH = box.height - pad * 2;
 
-  return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      {/* ヘッダー */}
-      <header className="border-b bg-white">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="text-xl font-bold">one牌｜AIチャット購入体験 モック</div>
-          <nav className="flex items-center gap-2">
-            <a href="#" className="px-3 py-1 text-sm rounded border hover:bg-neutral-50">
-              ショップ
-            </a>
-            <a href="#" className="px-3 py-1 text-sm rounded border hover:bg-neutral-50">
-              入稿規定
-            </a>
-            <a href="#" className="px-3 py-1 text-sm rounded border hover:bg-neutral-50">
-              法人お問い合わせ
-            </a>
-          </nav>
-        </div>
-      </header>
+    const line1 = Array.from(lines[0]).length || 1;
+    const line2 = Array.from(lines[1]).length;
+    const maxLineChars = Math.max(line1, line2);
 
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-16">
-        {/* 1. カテゴリ */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold">1. カテゴリを選択</h2>
+    // 縦：縦書き1～2列／横：横書き1～2行として概算
+    const lineCount = lines[1] ? 2 : 1;
 
-          <div className="grid md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setCategory("original")}
-              className={[
-                "rounded-xl border p-4 text-left bg-white",
-                category === "original" ? "ring-2 ring-black" : "hover:bg-neutral-50",
-              ].join(" ")}
-            >
-              <div className="font-semibold">オリジナル麻雀牌</div>
-              <div className="text-xs text-neutral-600 mt-1">
-                あなただけのオリジナル牌が作成できます。アクセサリーやギフトにおすすめ！
-              </div>
-            </button>
+    if (layout === "vertical") {
+      // 1文字のボックスサイズ（内枠の高さを縦に均等割）
+      const sizeByHeight = innerH / (maxLineChars + 0.2);
+      // 横に 1～2 列ある想定なので、文字の幅にも余裕を見る
+      const sizeByWidth = innerW / (lineCount + 0.4);
+      setFontSize(Math.floor(Math.min(sizeByHeight, sizeByWidth)));
+    } else {
+      // 横の場合は 1～2 行に分ける
+      const sizeByHeight = innerH / (lineCount + 0.1);
+      const sizeByWidth = innerW / (maxLineChars + 0.2);
+      setFontSize(Math.floor(Math.min(sizeByHeight, sizeByWidth)));
+    }
+  }, [lines, layout]);
 
-            <button
-              type="button"
-              onClick={() => setCategory("regular")}
-              className={[
-                "rounded-xl border p-4 text-left bg-white",
-                category === "regular" ? "ring-2 ring-black" : "hover:bg-neutral-50",
-              ].join(" ")}
-            >
-              <div className="font-semibold">通常牌（バラ売り）</div>
-              <div className="text-xs text-neutral-600 mt-1">
-                通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
-              </div>
-            </button>
+  // 行を1つの文字配列に
+  const chars = useMemo(() => {
+    const a = Array.from(lines[0]);
+    const b = Array.from(lines[1] || "");
+    return [a, b] as [string[], string[]];
+  }, [lines]);
+
+  const content = (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        borderRadius: 18,
+        background: "#fff",
+        boxShadow: "inset 0 0 0 2px #111, 0 8px 24px rgba(0,0,0,0.15)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* 面取り風の内枠 */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 10,
+          borderRadius: 14,
+          boxShadow: "inset 0 0 0 2px #111",
+        }}
+      />
+
+      {/* 文字 */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          fontFamily,
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          writingMode: layout === "vertical" ? "vertical-rl" : "horizontal-tb",
+          gap: layout === "vertical" ? 10 : 4,
+        }}
+      >
+        {chars.map((line, li) => (
+          <div
+            key={li}
+            style={{
+              display: "flex",
+              flexDirection: layout === "vertical" ? "column" : "row",
+              alignItems: "center",
+              justifyContent: "center",
+              // 文字間を詰め気味に
+              gap: layout === "vertical" ? 6 : 8,
+            }}
+          >
+            {line.map((ch, ci) => {
+              const color = colors[li === 0 ? ci : chars[0].length + ci] || "black";
+              return (
+                <span
+                  key={`${li}-${ci}`}
+                  style={{
+                    fontSize,
+                    fontWeight: 600,
+                    ...mapColorStyle(color),
+                  }}
+                >
+                  {ch}
+                </span>
+              );
+            })}
           </div>
-
-          <ul className="text-sm text-neutral-700 list-disc ml-5 mt-2">
-            <li>1つからの発送目安：<b>約2〜3週間</b>（受注状況により前後）</li>
-            <li>割引：5個で10% / 10個で15%</li>
-            <li>すべて税込みです。</li>
-          </ul>
-        </section>
-
-        {/* 2. デザイン確認（オリジナルのみ表示） */}
-        {category === "original" && (
-          <section className="space-y-6">
-            <h2 className="text-2xl font-bold">2. デザイン確認</h2>
-
-            {/* 入力エリア */}
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                {/* タブ風（固定：名前入れ） */}
-                <div className="flex items-center gap-2">
-                  <Pill active>名前入れ</Pill>
-                  <Pill>デザイン持ち込み</Pill>
-                  <Pill>デザイン依頼</Pill>
-                </div>
-
-                {/* フォント */}
-                <div className="flex items-center gap-2">
-                  <label className="w-24 text-sm">フォント</label>
-                  <select
-                    className="border rounded px-3 py-2 w-60 bg-white"
-                    value={fontKey}
-                    onChange={(e) => setFontKey(e.target.value)}
-                  >
-                    {FONT_OPTIONS.map((f) => (
-                      <option key={f.key} value={f.key}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 文字 */}
-                <div className="flex items-center gap-2">
-                  <label className="w-24 text-sm">文字</label>
-                  <input
-                    className="border rounded px-3 py-2 w-60 bg-white"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="例：一刀"
-                  />
-                </div>
-
-                {/* レイアウト */}
-                <div className="flex items-center gap-2">
-                  <label className="w-24 text-sm">レイアウト</label>
-                  <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>
-                    縦
-                  </Pill>
-                  <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>
-                    横
-                  </Pill>
-                </div>
-
-                {/* 色の指定（セレクト化） */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <label className="w-24 text-sm">色の指定</label>
-                    <Pill active={!usePerChar} onClick={() => setUsePerChar(false)}>
-                      単一色で進む
-                    </Pill>
-                    <Pill active={usePerChar} onClick={() => setUsePerChar(true)}>
-                      1文字ずつ指定
-                    </Pill>
-                  </div>
-
-                  {/* 単一色 */}
-                  {!usePerChar && (
-                    <div className="flex items-center gap-2">
-                      <label className="w-24 text-sm">色</label>
-                      <select
-                        className="border rounded px-3 py-2 bg-white"
-                        value={singleColor}
-                        onChange={(e) => setSingleColor(e.target.value as ColorKey)}
-                      >
-                        {COLOR_OPTIONS.map((o) => (
-                          <option key={o.key} value={o.key}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* 1文字ずつ */}
-                  {usePerChar && (
-                    <div className="space-y-1">
-                      <div className="text-xs text-neutral-600">各文字の色を選択</div>
-                      <div className="grid sm:grid-cols-2 gap-2">
-                        {Array.from(text || "").map((ch, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <div className="w-10 text-right text-sm">{ch}</div>
-                            <select
-                              className="border rounded px-3 py-2 bg-white flex-1"
-                              value={ensureLen(colorsPerChar, text.length)[idx]}
-                              onChange={(e) => {
-                                const next = ensureLen(colorsPerChar, text.length);
-                                next[idx] = e.target.value as ColorKey;
-                                setColorsPerChar(next);
-                              }}
-                            >
-                              {COLOR_OPTIONS.map((o) => (
-                                <option key={o.key} value={o.key}>
-                                  {o.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 大きめプレビュー */}
-              <div className="flex items-center justify-center">
-                <NameTilePreview
-                  text={text}
-                  layout={layout}
-                  fontStack={FONT_OPTIONS.find((f) => f.key === fontKey)?.stack || ""}
-                  colors={colorsForPreview}
-                  size={1.15} // 大きめ表示
-                />
-              </div>
-            </div>
-
-            <p className="text-xs text-neutral-600">
-              ※ 全角4文字を超えると自動的に2行になります。縦レイアウトでは縦書き、横レイアウトでは牌自体が横向き・横書きで表示されます。
-            </p>
-          </section>
-        )}
-
-        {/* 3. サイズ選択（ダミーUI） */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold">3. サイズ選択</h2>
-          <div className="flex items-center gap-2">
-            <Pill active>28mm</Pill>
-            <Pill>30mm</Pill>
-          </div>
-        </section>
-
-        {/* 4. オプション（ダミーUI） */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold">4. オプションと数量</h2>
-          <div className="text-sm text-neutral-600">
-            キーホルダー / 桐箱 などのオプションは今後ここに追加予定です。
-          </div>
-        </section>
-      </main>
-
-      {/* ボトムサマリー（簡易） */}
-      <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t">
-        <div className="max-w-5xl mx-auto px-4 py-2 text-sm flex items-center justify-between">
-          <div>小計: ¥0 / 割引: -¥0 / 送料: ¥0</div>
-          <div className="font-semibold">合計: ¥0</div>
-        </div>
+        ))}
       </div>
     </div>
   );
-}
+
+  return (
+    <div
+      ref={outerRef}
+      style={{
+        width: 360,
+        height: 480,
+        borderRadius: 24,
+        padding: 12,
+        background:
+          "linear-gradient(180deg,#f9fafb,#f3f4f6 35%,#f3f4f6 65%,#e5e7eb)",
+        boxShadow:
+          "0 10px 24px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.6) inset",
+        transform: layout === "horizontal" ? "rotate(90deg)" : "none",
+        transition: "transform .25s ease",
+      }}
+    >
+      {content}
+    </div>
+  );
+};
+
+/** ========== メイン ========== **/
+const App: React.FC = () => {
+  const [text, setText] = useState("一刀");
+  const [layout, setLayout] = useState<"vertical" | "horizontal">("vertical");
+  const [fontKey, setFontKey] = useState<"manzu" | "gothic" | "mincho">(
+    "manzu"
+  );
+  const fontStack =
+    fontKey === "manzu"
+      ? `ta-fuga-fude, "TA風雅筆", "Hiragino Mincho ProN", "Yu Mincho", serif`
+      : fontKey === "gothic"
+      ? `system-ui, -apple-system, "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif`
+      : `"Yu Mincho","Hiragino Mincho ProN",serif`;
+
+  // 文字列を2行に分割
+  const lines = useMemo(() => sliceToTwoLines(text.trim()), [text]);
+
+  // 1文字ごとの色（行またぎで 1行目→2行目の順）
+  const totalChars = Array.from(lines[0]).length + Array.from(lines[1]).length;
+  const [perCharColor, setPerCharColor] = useState<ColorKey[]>([]);
+  const safeColors = useMemo(
+    () => fillColors(perCharColor, totalChars || 1),
+    [perCharColor, totalChars]
+  );
+
+  // 文字ごと色のスウォッチ UI
+  const ColorPickerRow: React.FC<{ index: number; char: string }> = ({
+    index,
+    char,
+  }) => {
+    const current = safeColors[index] || "black";
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "28px repeat(6, 28px)",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontWeight: 600 }}>{char || "　"}</div>
+        {PALETTE.map((p) => (
+          <button
+            key={p.key}
+            title={p.label}
+            onClick={() => {
+              const next = safeColors.slice();
+              next[index] = p.key;
+              setPerCharColor(next);
+            }}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              cursor: "pointer",
+              ...(p.style as React.CSSProperties),
+              outline:
+                current === p.key ? "2px solid #111" : "1px solid #d1d5db",
+              boxShadow:
+                current === p.key ? "0 0 0 2px #fff inset" : "none",
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // 1行目+2行目の配列化（色指定の一覧に使う）
+  const charList = useMemo(() => {
+    const a = Array.from(lines[0]);
+    const b = Array.from(lines[1] || "");
+    return [...a, ...b];
+  }, [lines]);
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f6f7f9",
+        color: "#111827",
+        fontFamily:
+          'system-ui, -apple-system, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"',
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(6px)",
+          borderBottom: "1px solid #e5e7eb",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1120,
+            margin: "0 auto",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>one牌</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>
+            プレビュー改善版（牌デザイン / 自動フィット / 1文字ごと色）
+          </div>
+        </div>
+      </header>
+
+      <main style={{ maxWidth: 1120, margin: "0 auto", padding: 16 }}>
+        {/* コントロール */}
+        <section
+          style={{
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 16,
+          }}
+        >
+          <h2 style={{ fontWeight: 700, marginBottom: 12 }}>入力</h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "140px 1fr",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+            <div>文字</div>
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="全角4文字を超えると2行になります"
+              style={{
+                width: "100%",
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "10px 12px",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "140px 1fr",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+            <div>レイアウト</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setLayout("vertical")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: layout === "vertical" ? "#111" : "#fff",
+                  color: layout === "vertical" ? "#fff" : "#111",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                縦
+              </button>
+              <button
+                onClick={() => setLayout("horizontal")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: layout === "horizontal" ? "#111" : "#fff",
+                  color: layout === "horizontal" ? "#fff" : "#111",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                横（牌ごと回転）
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "140px 1fr",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <div>フォント</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setFontKey("manzu")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: fontKey === "manzu" ? "#111" : "#fff",
+                  color: fontKey === "manzu" ? "#fff" : "#111",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                萬子風（TA風雅筆）
+              </button>
+              <button
+                onClick={() => setFontKey("gothic")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: fontKey === "gothic" ? "#111" : "#fff",
+                  color: fontKey === "gothic" ? "#fff" : "#111",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                ゴシック
+              </button>
+              <button
+                onClick={() => setFontKey("mincho")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: fontKey === "mincho" ? "#111" : "#fff",
+                  color: fontKey === "mincho" ? "#fff" : "#111",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                明朝
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* プレビュー + 色指定 */}
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(360px, 420px) 1fr",
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 16,
+              padding: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 520,
+            }}
+          >
+            <MahjongTile
+              lines={lines}
+              colors={safeColors}
+              layout={layout}
+              fontFamily={fontStack}
+            />
+          </div>
+
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 16,
+              padding: 16,
+            }}
+          >
+            <h3 style={{ fontWeight: 700, marginBottom: 10 }}>
+              1文字ずつ色を選択
+            </h3>
+            <div style={{ display: "grid", gap: 10 }}>
+              {charList.length === 0 ? (
+                <div style={{ color: "#6b7280", fontSize: 14 }}>
+                  文字を入力すると、ここに色の選択肢が表示されます。
+                </div>
+              ) : (
+                charList.map((ch, i) => (
+                  <ColorPickerRow key={i} index={i} char={ch} />
+                ))
+              )}
+            </div>
+            <div style={{ marginTop: 12, fontSize: 12, color: "#6b7280" }}>
+              ※ デフォルトは黒。レインボーはグラデーションで表現します。
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+};
+
+export default App;
