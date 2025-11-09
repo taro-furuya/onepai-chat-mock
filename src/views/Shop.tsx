@@ -11,11 +11,11 @@ type Flow = "original_single" | "fullset" | "regular";
 type FontKey = "ta-fuga-fude" | "gothic" | "mincho";
 type CartItem = {
   id: string;
+  flow: Flow;
   title: string;
   qty: number;
   unit: number;
   optionUnit: number;
-  discount: number;
   note?: string;
   extras: { label: string; unit: number }[];
   designDetails?: string[];
@@ -33,7 +33,7 @@ const PRICING = {
     design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
     design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
     multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" }, // ¥800（要件どおり）
+    rainbow: { priceIncl: 800, label: "レインボー" }, // ¥800 固定
     kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
     bring_own_color_unit: { priceIncl: 200, label: "持ち込み追加色（1色）" },
   },
@@ -67,7 +67,7 @@ const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   },
 ];
 
-// ●スウォッチ（1行ラベル用）
+// ●スウォッチ（1行ラベル）
 const SwatchLabel: React.FC<{ css: string; label: string }> = ({ css, label }) => {
   const isGrad = css.startsWith("linear-gradient");
   return (
@@ -141,7 +141,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
-  // ボトムバーの高さに応じた余白（広めに確保）
+  // ボトムバーの高さに応じた余白
   const [bottomExtraSpace, setBottomExtraSpace] = useState<number>(160);
 
   // キーホルダー数量は注文数量を上限
@@ -161,7 +161,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-  /** 単価・オプション内訳 */
+  /** 単価・オプション内訳（色の料金ロジック更新：最大¥800、レインボーは¥800） */
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
     const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
@@ -190,17 +190,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
 
     if (isSingle && designType === "name_print") {
-      if (useUnifiedColor && unifiedColor === "rainbow") {
-        out.push({ label: PRICING.options.rainbow.label, amount: PRICING.options.rainbow.priceIncl }); // ¥800
-      } else if (!useUnifiedColor) {
-        const uniq = Array.from(new Set(perCharColors));
-        const add = Math.max(0, uniq.length - 1);
-        if (add > 0) {
-          out.push({
-            label: `${PRICING.options.multi_color.label} × ${add}`,
-            amount: PRICING.options.multi_color.priceIncl * add,
-          });
+      if (useUnifiedColor) {
+        if (unifiedColor === "rainbow") {
+          out.push({ label: PRICING.options.rainbow.label, amount: 800 });
         }
+      } else {
+        const uniq = new Set(perCharColors);
+        const fee = uniq.has("rainbow")
+          ? 800
+          : Math.min(800, Math.max(0, uniq.size - 1) * 200);
+        if (fee > 0) out.push({ label: "色追加", amount: fee });
       }
     }
 
@@ -234,19 +233,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   const optionsUnit = extraDetails.reduce((s, d) => s + d.amount, 0);
 
-  /** 割引率 */
-  const discountRate = useMemo(() => {
-    if (flow === "original_single") return qty >= 10 ? 0.15 : qty >= 5 ? 0.1 : 0;
-    if (flow === "fullset") return qty >= 5 ? 0.2 : 0;
-    return 0;
-  }, [flow, qty]);
-
-  // 現在選択中アイテムの計算
+  // 現在選択中アイテムの計算（割引はここでは適用しない）
   const productSubtotal = productUnit * qty;
   const optionsSubtotal = optionsUnit * qty;
-  const discountAmount = Math.floor((productSubtotal + optionsSubtotal) * discountRate);
-  const merchandiseSubtotal = productSubtotal + optionsSubtotal - discountAmount;
-  const shippingBySelection = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
+  const selectionMerchandise = productSubtotal + optionsSubtotal; // 割引前
+  const shippingBySelection = selectionMerchandise >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
+  const selectionTotal = selectionMerchandise + shippingBySelection;
 
   /** タイトル */
   const productTitle = useMemo(() => {
@@ -298,7 +290,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     regularHonor,
   ]);
 
-  /** ファイル選択（ボタン1つだけ） */
+  /** ファイル選択（右側ボタンのみ） */
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const fs = Array.from(e.target.files || []);
@@ -317,16 +309,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   };
   const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
 
-  /** カート操作 */
-  const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit) - ci.discount;
+  /** カート操作（割引はカート全体で再計算するため、ここでは持たせない） */
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
+      flow,
       title: productTitle,
       qty,
       unit: productUnit,
       optionUnit: optionsUnit,
-      discount: discountAmount,
       note,
       extras: extraDetails.map((d) => ({ label: d.label, unit: d.amount })),
       designDetails: currentDesignDetails,
@@ -341,11 +332,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       );
       if (idx >= 0) {
         const copy = prev.slice();
-        copy[idx] = {
-          ...copy[idx],
-          qty: copy[idx].qty + item.qty,
-          discount: copy[idx].discount + item.discount,
-        };
+        copy[idx] = { ...copy[idx], qty: copy[idx].qty + item.qty };
         return copy;
       }
       return [...prev, item];
@@ -354,9 +341,23 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     setTimeout(() => setToast(null), 1200);
   };
 
-  /** ===== カート全体の金額（ボトムバー表示用） ===== */
+  /** ===== カート全体の金額（累計割引対応） ===== */
   const cartGross = cartItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
-  const cartDiscount = cartItems.reduce((s, it) => s + it.discount, 0);
+
+  // オリジナル単品の累計割引（5個10% / 10個15%）
+  const originalItems = cartItems.filter((it) => it.flow === "original_single");
+  const originalQty = originalItems.reduce((s, it) => s + it.qty, 0);
+  const originalSubtotal = originalItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
+  const originalRate = originalQty >= 10 ? 0.15 : originalQty >= 5 ? 0.1 : 0;
+  const originalDiscount = Math.floor(originalSubtotal * originalRate);
+
+  // フルセットは累計5セットで20%
+  const fullsetItems = cartItems.filter((it) => it.flow === "fullset");
+  const fullsetQty = fullsetItems.reduce((s, it) => s + it.qty, 0);
+  const fullsetSubtotal = fullsetItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
+  const fullsetDiscount = fullsetQty >= 5 ? Math.floor(fullsetSubtotal * 0.2) : 0;
+
+  const cartDiscount = originalDiscount + fullsetDiscount;
   const cartMerchandiseSubtotal = Math.max(0, cartGross - cartDiscount);
   const cartShipping =
     cartMerchandiseSubtotal >= PRICING.shipping.freeOver
@@ -427,20 +428,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 >
                   フルセット
                 </Pill>
-              </div>
-              <div className="mt-3 text-xs text-neutral-600 space-y-1">
-                {flow === "original_single" && (
-                  <>
-                    <div>発送目安：<b>約2〜3週間</b></div>
-                    <div>割引：<b>5個で10%</b> / <b>10個で15%</b></div>
-                  </>
-                )}
-                {flow === "fullset" && (
-                  <>
-                    <div>発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）</div>
-                    <div>割引：<b>5セットで20%</b></div>
-                  </>
-                )}
               </div>
             </div>
           )}
@@ -521,7 +508,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
                   </div>
 
-                  {/* 色指定（●スウォッチ＋1行ラベル／2段折りOK） */}
+                  {/* 色指定（1段目：ブラック/レッド/ブルー、2段目：グリーン/ピンク/レインボー） */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <label className="w-24">色指定</label>
@@ -530,32 +517,70 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     </div>
 
                     {useUnifiedColor ? (
-                      <div className="pl-24 flex flex-wrap gap-2 items-center">
-                        {COLOR_LIST.map((c) => (
-                          <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
-                            <SwatchLabel css={c.css} label={c.label} />
-                          </Pill>
-                        ))}
+                      <div className="pl-24 space-y-2">
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {["black","red","blue"].map((k) => {
+                            const c = COLOR_LIST.find((x) => x.key === (k as ColorKey))!;
+                            return (
+                              <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
+                                <SwatchLabel css={c.css} label={c.label} />
+                              </Pill>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {["green","pink","rainbow"].map((k) => {
+                            const c = COLOR_LIST.find((x) => x.key === (k as ColorKey))!;
+                            return (
+                              <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
+                                <SwatchLabel css={c.css} label={c.label} />
+                              </Pill>
+                            );
+                          })}
+                        </div>
                       </div>
                     ) : (
                       <div className="pl-24 space-y-2">
                         {splitChars(text || "麻雀").map((ch, idx) => (
                           <div key={idx} className="flex items-center gap-3">
                             <div className="w-6 text-center text-sm">{ch}</div>
-                            <div className="flex flex-wrap gap-2">
-                              {COLOR_LIST.map((c) => (
-                                <Pill
-                                  key={c.key}
-                                  active={(perCharColors[idx] || "black") === c.key}
-                                  onClick={() => {
-                                    const arr = perCharColors.slice();
-                                    arr[idx] = c.key;
-                                    setPerCharColors(arr);
-                                  }}
-                                >
-                                  <SwatchLabel css={c.css} label={c.label} />
-                                </Pill>
-                              ))}
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-2">
+                                {(["black","red","blue"] as ColorKey[]).map((k) => {
+                                  const c = COLOR_LIST.find((x) => x.key === k)!;
+                                  return (
+                                    <Pill
+                                      key={c.key}
+                                      active={(perCharColors[idx] || "black") === c.key}
+                                      onClick={() => {
+                                        const arr = perCharColors.slice();
+                                        arr[idx] = c.key;
+                                        setPerCharColors(arr);
+                                      }}
+                                    >
+                                      <SwatchLabel css={c.css} label={c.label} />
+                                    </Pill>
+                                  );
+                                })}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {(["green","pink","rainbow"] as ColorKey[]).map((k) => {
+                                  const c = COLOR_LIST.find((x) => x.key === k)!;
+                                  return (
+                                    <Pill
+                                      key={c.key}
+                                      active={(perCharColors[idx] || "black") === c.key}
+                                      onClick={() => {
+                                        const arr = perCharColors.slice();
+                                        arr[idx] = c.key;
+                                        setPerCharColors(arr);
+                                      }}
+                                    >
+                                      <SwatchLabel css={c.css} label={c.label} />
+                                    </Pill>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -596,7 +621,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
-                    {/* ブラウザ標準の表示を完全に隠す */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -755,8 +779,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               pattern="[0-9]*"
             />
             <div className="text-xs text-neutral-600">
-              {flow === "original_single" && "※ 5個で10%OFF / 10個で15%OFF"}
-              {flow === "fullset" && "※ 5セットで20%OFF"}
+              オリジナルは累計5個で10%OFF / 10個で15%OFF（カート合算）
             </div>
           </div>
         </Card>
@@ -805,7 +828,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               )}
             </div>
 
-            {/* 注記（重複防止） */}
             <div className="text-xs text-neutral-600">
               <ul className="list-disc ml-5 space-y-1">
                 <li>桐箱は4枚用です。28mm専用となります。</li>
@@ -834,21 +856,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <td className="py-1 text-neutral-600">数量</td>
                     <td className="py-1 text-right">× {qty}</td>
                   </tr>
-                  {discountRate > 0 && (
-                    <tr>
-                      <td className="py-1 text-emerald-700 font-semibold">
-                        割引（{flow === "fullset" ? "フルセット" : "オリジナル"} {Math.round(discountRate * 100)}%OFF）
-                      </td>
-                      <td className="py-1 text-right text-emerald-700 font-semibold">-¥{fmt(discountAmount)}</td>
-                    </tr>
-                  )}
                   <tr>
                     <td className="py-1 text-neutral-600">送料</td>
-                    <td className="py-1 text-right">{shippingBySelection === 0 ? "¥0（送料無料）" : `¥${fmt(shippingBySelection)}`}</td>
+                    <td className="py-1 text-right">{selectionMerchandise >= PRICING.shipping.freeOver ? "¥0（送料無料）" : `¥${fmt(PRICING.shipping.flat)}`}</td>
                   </tr>
                   <tr>
                     <td className="py-1 font-semibold">合計</td>
-                    <td className="py-1 text-right font-semibold">¥{fmt(merchandiseSubtotal + shippingBySelection)}</td>
+                    <td className="py-1 text-right font-semibold">¥{fmt(selectionTotal)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -877,7 +891,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           id: ci.id,
           title: ci.title,
           qty: ci.qty,
-          lineTotal: lineTotal(ci),
+          // 行は割引前表示（誤認防止）
+          lineTotal: ci.qty * (ci.unit + ci.optionUnit),
           details: ci.designDetails,
           options: ci.extras?.map((e) => `${e.label}：¥${fmt(e.unit)}（単価）`) || [],
         }))}
