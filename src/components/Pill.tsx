@@ -1,23 +1,23 @@
 import React from "react";
 
-export default function Pill({
-  active,
-  onClick,
-  children,
-  className = "",
-}: {
+const Pill: React.FC<{
   active?: boolean;
   onClick?: () => void;
   children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1 rounded ${active ? "bg-black text-white" : "border hover:bg-neutral-50"} ${className}`}
-    >
-      {children}
-    </button>
-  );
-}
+  title?: string;
+  type?: "button" | "submit" | "reset";
+  big?: boolean;
+}> = ({ active, onClick, children, title, type = "button", big }) => (
+  <button
+    type={type}
+    onClick={onClick}
+    title={title}
+    className={`${big ? "px-4 py-2" : "px-3 py-1"} rounded-xl text-sm border transition ${
+      active ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50"
+    }`}
+  >
+    {children}
+  </button>
+);
+
+export default Pill;
