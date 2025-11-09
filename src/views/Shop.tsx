@@ -6,6 +6,7 @@ import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 
 type Flow = "original_single" | "fullset" | "regular";
+type FontKey = "ta-fuga-fude" | "gothic" | "mincho";
 
 const fmt = (n: number) => new Intl.NumberFormat("ja-JP").format(n);
 const splitChars = (s: string) => Array.from(s || "");
@@ -17,7 +18,7 @@ const PRICING = {
     design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
     design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
     multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" }, // 800円
+    rainbow: { priceIncl: 800, label: "レインボー" }, // ← 800円
     kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
     bring_own_color_unit: { priceIncl: 200, label: "持ち込み追加色（1色）" },
   },
@@ -53,33 +54,24 @@ const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   },
 ];
 
-// 色バー（| の太め版）
-const ColorBarLabel: React.FC<{ css: string; label: string; active?: boolean; onClick?: () => void }> = ({
-  css,
-  label,
-  active,
-  onClick,
-}) => {
+const renderColorBar = (css: string) => {
   const isGrad = css.startsWith("linear-gradient");
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-2.5 py-1.5 rounded-lg border text-sm flex items-center gap-2 hover:bg-neutral-50 ${
-        active ? "ring-2 ring-black" : ""
-      }`}
-    >
-      <span
-        aria-hidden
-        className="inline-block w-2.5 h-5 rounded-sm"
-        style={isGrad ? { backgroundImage: css } : { background: css }}
-      />
-      <span>{label}</span>
-    </button>
+    <span
+      aria-hidden
+      className="inline-block mr-2 align-[-1px] rounded-sm"
+      style={{
+        width: 10,
+        height: 14,
+        background: isGrad ? undefined : css,
+        backgroundImage: isGrad ? css : undefined,
+        border: "1px solid #e5e7eb",
+      }}
+    />
   );
 };
 
-const BOTTOM_BAR_HEIGHT = 80;
+const BOTTOM_BAR_HEIGHT = 76;
 
 const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const selectRef = useRef<HTMLDivElement | null>(null);
@@ -93,7 +85,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [designType, setDesignType] = useState<"name_print" | "bring_own" | "commission">("name_print");
   const [text, setText] = useState("麻雀");
   const [layout, setLayout] = useState<Layout>("vertical");
-  const [fontKey, setFontKey] = useState<"ta-fuga-fude" | "gothic" | "mincho">("ta-fuga-fude");
+  const [fontKey, setFontKey] = useState<FontKey>("ta-fuga-fude");
   const [note, setNote] = useState("");
 
   // 色
@@ -112,7 +104,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [optKeyholder, setOptKeyholder] = useState(false);
   const [optKiribako4, setOptKiribako4] = useState(false);
 
-  // 通常牌（既存）
+  // 通常牌（保持のみ）
   const [regularBack] = useState<"yellow" | "blue">("yellow");
   const [regularSuit] = useState<"honor" | "manzu" | "souzu" | "pinzu">("honor");
   const [regularNumber] = useState(1);
@@ -120,7 +112,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   // ミニカート
   const [cartOpen, setCartOpen] = useState(false);
-  const openCart = () => setCartOpen(true);
+  const [toast, setToast] = useState<string | null>(null);
 
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
@@ -128,7 +120,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     return table.variants[v].priceIncl as number;
   }, [flow, variant]);
 
-  // 追加費用（明細化）
+  // 追加費用（明細）
   const extraDetails: { label: string; amount: number }[] = useMemo(() => {
     const out: { label: string; amount: number }[] = [];
     const isFull = flow === "fullset";
@@ -172,11 +164,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       const ok = (flow === "original_single" && variant === "standard") || flow === "regular";
       if (ok) out.push({ label: PRICING.options.kiribako_4.label, amount: PRICING.options.kiribako_4.priceIncl });
     }
-
     if (!isFull && optKeyholder) {
       out.push({ label: PRICING.options.keyholder.label, amount: PRICING.options.keyholder.priceIncl });
     }
-
     return out;
   }, [flow, variant, designType, bringOwnColorCount, useUnifiedColor, unifiedColor, perCharColors, optKeyholder, optKiribako4]);
 
@@ -208,13 +198,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     return `オリジナル麻雀牌（${variant === "standard" ? "28mm" : "30mm"}${flow === "fullset" ? "／フルセット" : ""}）`;
   }, [flow, variant]);
 
-  // ファイル選択（シンプル化）
+  // ファイル選択（シンプルな白ボタンスタイル）
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const fs = Array.from(e.target.files || []);
     const ok = fs.filter((f) => ALLOWED.includes((f.name.split(".").pop() || "").toLowerCase()));
     const mapped = ok.map((f) => {
-      const isImg = f.type.startsWith("image/") && f.type !== "image/heic");
+      const isImg = f.type.startsWith("image/") && f.type !== "image/heic";
       return {
         id: `${f.name}_${f.size}_${Math.random().toString(36).slice(2)}`,
         name: f.name,
@@ -226,6 +216,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     e.currentTarget.value = "";
   };
   const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
+
+  const addToCart = () => {
+    setToast("カートに追加しました（ダミー）");
+    setCartOpen(true);
+    setTimeout(() => setToast(null), 1500);
+  };
 
   return (
     <div style={{ paddingBottom: BOTTOM_BAR_HEIGHT + 16 }}>
@@ -271,7 +267,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 2. デザイン or 通常牌選択 */}
+        {/* 2. デザイン or 通常牌 */}
         {flow === "regular" ? (
           <Card title="2. 背面色と牌の選択（通常牌）">
             <RegularTilePreview />
@@ -279,7 +275,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         ) : (
           <Card title="2. デザイン">
             <div className="flex flex-wrap gap-2">
-              {/* フルセットでは「名前入れ」非表示 */}
+              {/* フルセットでは「名前入れ」を非表示 */}
               {flow !== "fullset" && (
                 <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
                   名前入れ
@@ -309,50 +305,40 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
                   <div className="flex items-center gap-2">
                     <label className="w-24">レイアウト</label>
-                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>
-                      縦
-                    </Pill>
-                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>
-                      横
-                    </Pill>
+                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
                   </div>
 
                   {/* フォント選択 */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <label className="w-24">フォント</label>
-                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>
-                      萬子風
-                    </Pill>
-                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>
-                      ゴシック
-                    </Pill>
-                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>
-                      明朝
-                    </Pill>
+                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
+                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
                   </div>
 
-                  {/* 色指定：統一or個別 */}
+                  {/* 色指定：統一or個別（| バーを太く＆色付き） */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <label className="w-24">色指定</label>
-                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>
-                        一括指定
-                      </Pill>
-                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>
-                        1文字ずつ
-                      </Pill>
+                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
+                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
                     </div>
 
                     {useUnifiedColor ? (
                       <div className="flex flex-wrap gap-2 pl-24">
                         {COLOR_LIST.map((c) => (
-                          <ColorBarLabel
+                          <button
                             key={c.key}
-                            css={c.css}
-                            label={c.label}
-                            active={unifiedColor === c.key}
+                            type="button"
                             onClick={() => setUnifiedColor(c.key)}
-                          />
+                            className={`px-3 py-1.5 rounded-xl border text-sm flex items-center ${
+                              unifiedColor === c.key ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50"
+                            }`}
+                          >
+                            {renderColorBar(c.css)}
+                            {c.label}
+                          </button>
                         ))}
                       </div>
                     ) : (
@@ -362,17 +348,23 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                             <div className="w-6 text-center text-sm">{ch}</div>
                             <div className="flex flex-wrap gap-2">
                               {COLOR_LIST.map((c) => (
-                                <ColorBarLabel
+                                <button
                                   key={c.key}
-                                  css={c.css}
-                                  label={c.label}
-                                  active={(perCharColors[idx] || "black") === c.key}
+                                  type="button"
                                   onClick={() => {
                                     const arr = perCharColors.slice();
                                     arr[idx] = c.key;
                                     setPerCharColors(arr);
                                   }}
-                                />
+                                  className={`px-3 py-1.5 rounded-xl border text-sm flex items-center ${
+                                    (perCharColors[idx] || "black") === c.key
+                                      ? "bg-black text-white border-black"
+                                      : "bg-white hover:bg-neutral-50"
+                                  }`}
+                                >
+                                  {renderColorBar(c.css)}
+                                  {c.label}
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -387,7 +379,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="border rounded px-3 py-2 w-full h-56"
+                      className="border rounded px-3 py-2 w-full h-72"
                       placeholder="ご希望・注意点など（任意）"
                     />
                   </div>
@@ -413,7 +405,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
-                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer bg-white hover:bg-neutral-50">
+                    {/* シンプルな白ボタン */}
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border bg-white cursor-pointer">
                       <span>ファイルを選択</span>
                       <input
                         type="file"
@@ -476,19 +469,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </Card>
         )}
 
-        {/* 3. サイズ選択 */}
+        {/* 3. サイズ選択（数量は分離するのでここはサイズのみ） */}
         {(flow === "original_single" || flow === "fullset") && (
           <Card title="3. サイズ選択">
             <div className="flex flex-wrap items-center gap-2">
-              <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>
-                28mm
-              </Pill>
-              <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>
-                30mm
-              </Pill>
+              <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>28mm</Pill>
+              <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>30mm</Pill>
             </div>
 
-            {/* 対応機種（選択サイズで出し分け） */}
+            {/* 対応機種（サイズに応じて出し分け） */}
             <details className="mt-3">
               <summary className="cursor-pointer select-none text-sm font-medium">対応機種</summary>
               <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
@@ -528,10 +517,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </Card>
         )}
 
-        {/* 4. 数量（サイズと分離） */}
+        {/* 4. 数量（分離） */}
         <Card title="4. 数量">
           <div className="flex items-center gap-2">
-            <label className="text-sm">数量</label>
             <input
               type="number"
               value={qty}
@@ -539,14 +527,14 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 const v = Number(e.target.value);
                 setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
               }}
-              className="border rounded px-3 py-2 w-24"
+              className="border rounded px-3 py-2 w-28"
               inputMode="numeric"
               pattern="[0-9]*"
             />
           </div>
         </Card>
 
-        {/* 5. オプション */}
+        {/* 5. オプション（見積と分離） */}
         <Card title="5. オプション">
           <div className="flex flex-wrap gap-3">
             <button
@@ -573,7 +561,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 6. 見積もり（明細・割引反映・カートに追加） */}
+        {/* 6. 見積（明細・割引・カートに追加） */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -621,31 +609,47 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </table>
             </div>
 
-            {/* アクション */}
-            <div className="flex flex-col items-end gap-2">
-              <button type="button" className="px-5 py-2 rounded-xl border" onClick={openCart}>
+            <div className="flex items-end justify-end gap-2">
+              <button
+                type="button"
+                onClick={addToCart}
+                className="px-5 py-3 rounded-2xl border shadow-sm bg-white hover:bg-neutral-50"
+              >
                 カートに追加
               </button>
-              <button type="button" className="px-5 py-2 rounded-xl bg-black text-white" onClick={openCart}>
-                購入手続きへ
+              <button
+                type="button"
+                onClick={() => setCartOpen(true)}
+                className="px-5 py-3 rounded-2xl bg-black text-white shadow"
+              >
+                カートを見る
               </button>
             </div>
           </div>
         </Card>
       </section>
 
-      {/* ボトムバー（中央寄せ & カートに追加） */}
+      {/* ボトムバー（中央寄せ／カートに追加あり） */}
       <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
-        <div className="max-w-3xl mx-auto h-[80px] px-4 flex items-center justify-between gap-3">
+        <div className="max-w-3xl mx-auto h-[76px] px-4 flex items-center justify-between gap-3">
           <div className="text-sm">
             <div className="font-semibold">{productTitle}</div>
-            <div className="text-neutral-600">合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）</div>
+            <div className="text-neutral-600">
+              合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" className="px-4 py-2 rounded-xl border" onClick={openCart}>
+            <button type="button" className="px-4 py-2 rounded-xl border" onClick={addToCart}>
               カートに追加
             </button>
-            <button type="button" className="px-5 py-2 rounded-xl bg-black text-white" onClick={openCart}>
+            <button type="button" className="px-4 py-2 rounded-xl border" onClick={() => setCartOpen(true)}>
+              ミニカート
+            </button>
+            <button
+              type="button"
+              className="px-5 py-2 rounded-xl bg-black text-white"
+              onClick={() => setCartOpen(true)}
+            >
               購入手続きへ
             </button>
           </div>
@@ -672,9 +676,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 {extraDetails.length > 0 && (
                   <ul className="mt-2 text-xs list-disc ml-5 space-y-1">
                     {extraDetails.map((d, i) => (
-                      <li key={i}>
-                        {d.label}：¥{fmt(d.amount)}（×{qty}）
-                      </li>
+                      <li key={i}>{d.label}：¥{fmt(d.amount)}（×{qty}）</li>
                     ))}
                   </ul>
                 )}
@@ -693,6 +695,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               <button className="mt-2 px-5 py-2 rounded-xl bg-black text-white w-full">この内容で注文（ダミー）</button>
             </div>
           </aside>
+        </div>
+      )}
+
+      {/* トースト */}
+      {toast && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-[88px] z-50 px-4 py-2 rounded-xl bg-black text-white text-sm shadow">
+          {toast}
         </div>
       )}
     </div>
