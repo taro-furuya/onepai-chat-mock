@@ -31,12 +31,12 @@ const PRICING = {
     },
   },
   options: {
-    keyholder: { priceIncl: 300 },
+    keyholder: { priceIncl: 300 }, // 1つにつき
     design_submission_single: { priceIncl: 500 },
     design_submission_fullset: { priceIncl: 5000 },
     multi_color: { priceIncl: 200 },
     rainbow: { priceIncl: 800 },
-    kiribako_4: { priceIncl: 1500 },
+    kiribako_4: { priceIncl: 1500 }, // 個数指定
     bring_own_color_unit: { priceIncl: 200 },
   },
 } as const;
@@ -85,21 +85,27 @@ export default function Shop() {
   const [perCharColors, setPerCharColors] = useState<ColorKey[]>(["black", "black", "black", "black"]);
 
   const [bringOwnColorCount, setBringOwnColorCount] = useState<number>(1);
-  const [keyholder, setKeyholder] = useState(false);
-  const [kiribako4, setKiribako4] = useState(false);
 
+  // オプション
+  const [keyholder, setKeyholder] = useState(false);
+  const [kiribakoQty, setKiribakoQty] = useState<number>(0); // ← 任意個数
+
+  // 通常牌
   const [regularBack, setRegularBack] = useState<"yellow" | "blue">("yellow");
   const [regularSuit, setRegularSuit] = useState<"honor" | "manzu" | "souzu" | "pinzu">("honor");
   const [regularNumber, setRegularNumber] = useState(1);
   const [regularHonor, setRegularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
 
+  // 数量（独立）
   const [qty, setQty] = useState(1);
 
+  // アップロード
   const [uploadSummary, setUploadSummary] = useState("");
   const [imagePreviews, setImagePreviews] = useState<
     Array<{ id: string; src: string; name: string; type: "image" | "file" }>
   >([]);
 
+  // カート & トースト & ドロワー
   type CartLine = {
     id: string;
     title: string;
@@ -111,6 +117,7 @@ export default function Shop() {
   };
   const [cart, setCart] = useState<CartLine[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [showCart, setShowCart] = useState(false);
 
   /* 相互制御 */
   useEffect(() => {
@@ -133,6 +140,7 @@ export default function Shop() {
     return obj?.variants?.[v]?.priceIncl || 0;
   }, [flow, variant]);
 
+  /* オプション明細（数量連動） */
   const optionBreakdown = useMemo(() => {
     const rows: { label: string; price: number }[] = [];
     const isFull = flow === "fullset";
@@ -157,21 +165,38 @@ export default function Shop() {
       }
     }
 
-    if (!isFull && kiribako4) {
-      const ok = (flow === "original_single" && effectiveVariant(flow, variant) === "standard") || flow === "regular";
-      if (ok) rows.push({ label: "桐箱（4枚用）", price: PRICING.options.kiribako_4.priceIncl });
+    // 桐箱：任意個数
+    if (!isFull) {
+      const boxes = Math.max(0, Math.floor(kiribakoQty || 0));
+      if (boxes > 0) rows.push({ label: `桐箱（4枚用）× ${boxes}`, price: PRICING.options.kiribako_4.priceIncl * boxes });
     }
 
-    if (!isFull && keyholder) rows.push({ label: "キーホルダー", price: PRICING.options.keyholder.priceIncl });
+    // キーホルダー：1つにつき300円 → 数量連動
+    if (!isFull && keyholder) {
+      const q = Math.max(1, qty);
+      rows.push({ label: `キーホルダー × ${q}`, price: PRICING.options.keyholder.priceIncl * q });
+    }
 
     return rows;
-  }, [flow, variant, designType, bringOwnColorCount, useUnifiedColor, unifiedColor, perCharColors, keyholder, kiribako4]);
+  }, [
+    flow,
+    variant,
+    designType,
+    bringOwnColorCount,
+    useUnifiedColor,
+    unifiedColor,
+    perCharColors,
+    keyholder,
+    kiribakoQty,
+    qty,
+  ]);
 
   const optionPrice = useMemo(() => optionBreakdown.reduce((a, b) => a + b.price, 0), [optionBreakdown]);
   const merchandiseSubtotal = baseUnit * Math.max(1, qty) + optionPrice;
   const shipping = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
   const total = merchandiseSubtotal + shipping;
 
+  /* アップロード */
   const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const filesAll = Array.from(e.target.files || []);
@@ -205,6 +230,7 @@ export default function Shop() {
     });
   };
 
+  /* 商品名 */
   const effectiveTitle = useMemo(() => {
     const v = effectiveVariant(flow, variant);
     if (flow === "original_single") return `オリジナル麻雀牌（${v === "standard" ? "28mm" : "30mm"}）`;
@@ -214,6 +240,7 @@ export default function Shop() {
     return `通常牌（28mm／背面:${back}／${tile}）`;
   }, [flow, variant, regularBack, regularSuit, regularNumber, regularHonor]);
 
+  /* カート操作 */
   const addToCart = () => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const optionsText = optionBreakdown.map((r) => `${r.label}: +¥${fmt(r.price)}`);
@@ -227,9 +254,9 @@ export default function Shop() {
       { id, title: effectiveTitle, qty: Math.max(1, qty), unitPrice: baseUnit + optionPrice, options: optionsText, note, previewText: text },
     ]);
     setToast("カートに追加しました。");
-    setTimeout(() => setToast(null), 1500);
+    setShowCart(true);
+    setTimeout(() => setToast(null), 1200);
   };
-
   const removeCartLine = (id: string) => setCart((prev) => prev.filter((l) => l.id !== id));
 
   const cartMerch = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0);
@@ -257,44 +284,6 @@ export default function Shop() {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* ミニカート */}
-      <div className="px-0 mt-3">
-        <div className="rounded-xl border bg-white p-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold">カート</div>
-            <div className="text-sm text-neutral-600">
-              合計 ¥{fmt(cartTotal)}（送料{cartShipping === 0 ? "0円" : `${fmt(cartShipping)}円`}）
-            </div>
-          </div>
-          {cart.length === 0 ? (
-            <div className="text-sm text-neutral-500 mt-2">カートは空です。</div>
-          ) : (
-            <div className="mt-2 space-y-3">
-              {cart.map((l) => (
-                <div key={l.id} className="border rounded-lg p-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium">{l.title}</div>
-                      <div className="text-xs text-neutral-600">単価 ¥{fmt(l.unitPrice)} / 数量 {l.qty}</div>
-                    </div>
-                    <button className="text-xs px-2 py-1 rounded border hover:bg-neutral-50" onClick={() => removeCartLine(l.id)}>
-                      削除
-                    </button>
-                  </div>
-                  {l.options.length > 0 && (
-                    <ul className="text-xs text-neutral-700 list-disc ml-5 mt-1 space-y-0.5">
-                      {l.options.map((o, i) => (
-                        <li key={i}>{o}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -433,7 +422,12 @@ export default function Shop() {
 
                 <div className="flex items-start gap-2">
                   <label className="w-24 mt-2">備考</label>
-                  <textarea value={note} onChange={(e) => setNote(e.target.value)} className="border rounded px-3 py-2 w-full h-24" placeholder="例）右上の文字だけ赤に、など" />
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="border rounded px-3 py-2 w-full h-32"
+                    placeholder="例）右上の文字だけ赤に、など"
+                  />
                 </div>
               </div>
 
@@ -457,9 +451,16 @@ export default function Shop() {
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
                   <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
+                  {/* ← ボタンは1つだけ */}
                   <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-black text-white cursor-pointer shadow">
                     <span>ファイルを選択</span>
-                    <input type="file" multiple accept="image/*,application/pdf,.psd,.ai,.tiff,.tif,.heic" onChange={onFilesSelected} className="hidden" />
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,application/pdf,.psd,.ai,.tiff,.tif,.heic"
+                      onChange={onFilesSelected}
+                      className="hidden"
+                    />
                   </label>
                   {uploadSummary && <div className="text-xs text-neutral-700 mt-2 whitespace-pre-line">{uploadSummary}</div>}
                   {imagePreviews.length > 0 && (
@@ -473,7 +474,13 @@ export default function Shop() {
                               {p.name.split(".").pop()?.toUpperCase()}
                             </div>
                           )}
-                          <button className="absolute top-1 right-1 text-[11px] px-1.5 py-0.5 rounded bg-white/90 border shadow hover:bg-white" onClick={() => removePreview(p.id)} type="button">削除</button>
+                          <button
+                            className="absolute top-1 right-1 text-[11px] px-1.5 py-0.5 rounded bg-white/90 border shadow hover:bg-white"
+                            onClick={() => removePreview(p.id)}
+                            type="button"
+                          >
+                            削除
+                          </button>
                           <div className="truncate mt-1">{p.name}</div>
                         </div>
                       ))}
@@ -483,15 +490,28 @@ export default function Shop() {
                 <div>
                   <label className="text-sm">色数</label>
                   <div className="mt-1 flex items-center gap-2">
-                    <input type="number" value={bringOwnColorCount}
-                      onChange={(e) => { const v = Number(e.target.value); setBringOwnColorCount(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1); }}
-                      className="border rounded px-3 py-2 w-28" inputMode="numeric" pattern="[0-9]*" />
+                    <input
+                      type="number"
+                      value={bringOwnColorCount}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setBringOwnColorCount(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+                      }}
+                      className="border rounded px-3 py-2 w-28"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                    />
                     <span className="text-xs text-neutral-600">※ 追加1色ごとに+¥200</span>
                   </div>
 
                   <div className="mt-3">
                     <label className="text-sm block mb-1">備考</label>
-                    <textarea value={note} onChange={(e) => setNote(e.target.value)} className="border rounded px-3 py-2 w-full h-24" placeholder="例）白フチあり、など" />
+                    <textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      className="border rounded px-3 py-2 w-full h-32"
+                      placeholder="例）白フチあり、など"
+                    />
                   </div>
                 </div>
               </div>
@@ -504,28 +524,27 @@ export default function Shop() {
               <div className="text-xs text-neutral-600 mb-2">※デザイン料は別途お見積りとなります。</div>
               <div className="flex items-start gap-2">
                 <label className="w-24 mt-2">備考</label>
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} className="border rounded px-3 py-2 w-full h-24" placeholder="ご要望をご記入ください（参考画像は問い合わせから添付してください）" />
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="border rounded px-3 py-2 w-full h-32"
+                  placeholder="ご要望をご記入ください（参考画像は問い合わせから添付してください）"
+                />
               </div>
             </div>
           )}
         </Card>
       )}
 
-      {/* 3. サイズ選択（数量ここ） */}
+      {/* 3. サイズ選択 */}
       {(flow === "original_single" || flow === "fullset") && (
         <Card title="3. サイズ選択">
           <div className="flex flex-wrap items-center gap-2">
             <Pill big active={variant === "standard"} onClick={() => setVariant("standard")}>28mm</Pill>
             <Pill big active={variant === "mm30"} onClick={() => setVariant("mm30")}>30mm</Pill>
-
-            <div className="ml-4 flex items-center gap-2">
-              <label className="text-sm">数量</label>
-              <input type="number" value={qty}
-                onChange={(e) => { const v = Number(e.target.value); setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1); }}
-                className="border rounded px-3 py-2 w-24" inputMode="numeric" pattern="[0-9]*" />
-            </div>
           </div>
 
+          {/* 対応機種：選択中サイズのみ表示 */}
           <details className="mt-3">
             <summary className="cursor-pointer select-none text-sm font-medium">対応機種</summary>
             <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
@@ -553,26 +572,56 @@ export default function Shop() {
         </Card>
       )}
 
-      {/* 4. オプション */}
-      <Card title="4. オプション">
-        <div className="flex flex-col gap-2">
+      {/* 4. 数量（独立） */}
+      <Card title="4. 数量">
+        <div className="flex items-center gap-2">
+          <label className="text-sm">数量</label>
+          <input
+            type="number"
+            value={qty}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+            }}
+            className="border rounded px-3 py-2 w-28"
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+        </div>
+      </Card>
+
+      {/* 5. オプション（押しやすいUI + ルール変更） */}
+      <Card title="5. オプション">
+        <div className="flex flex-col gap-3">
           {flow !== "fullset" && (
             <label className="inline-flex items-center gap-3 p-3 border rounded-xl hover:bg-neutral-50 cursor-pointer">
               <input type="checkbox" checked={keyholder} onChange={(e) => setKeyholder(e.target.checked)} />
-              <span className="text-sm">キーホルダー（+¥{fmt(PRICING.options.keyholder.priceIncl)}）</span>
+              <span className="text-sm">キーホルダー（1つにつき +¥{fmt(PRICING.options.keyholder.priceIncl)}）</span>
             </label>
           )}
           {((flow === "original_single" && variant === "standard") || flow === "regular") && (
-            <label className="inline-flex items-center gap-3 p-3 border rounded-xl hover:bg-neutral-50 cursor-pointer">
-              <input type="checkbox" checked={kiribako4} onChange={(e) => setKiribako4(e.target.checked)} />
-              <span className="text-sm">桐箱（4枚用 / +¥{fmt(PRICING.options.kiribako_4.priceIncl)}）</span>
-            </label>
+            <div className="flex items-center gap-3 p-3 border rounded-xl">
+              <div className="text-sm">桐箱（4枚用）</div>
+              <input
+                type="number"
+                min={0}
+                value={kiribakoQty}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setKiribakoQty(Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+                }}
+                className="border rounded px-3 py-2 w-28"
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              <span className="text-xs text-neutral-600">※ 個数 × ¥{fmt(PRICING.options.kiribako_4.priceIncl)}</span>
+            </div>
           )}
         </div>
       </Card>
 
-      {/* 5. 見積（明細あり） */}
-      <Card title="5. 見積">
+      {/* 6. 見積（ボタンサイズを少し控えめに） */}
+      <Card title="6. 見積">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <div className="text-sm font-medium mb-2">明細</div>
@@ -591,14 +640,22 @@ export default function Shop() {
           </div>
           <div className="flex items-end justify-end">
             <div className="flex gap-2">
-              <button type="button" className="px-5 py-3 rounded-xl border text-sm hover:bg-neutral-50" onClick={addToCart}>カートに追加</button>
-              <button type="button" className="px-5 py-3 rounded-xl bg-black text-white text-sm" onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}>購入手続きへ</button>
+              <button type="button" className="px-4 py-2 rounded-xl border text-sm hover:bg-neutral-50" onClick={addToCart}>
+                カートに追加
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl bg-black text-white text-sm"
+                onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}
+              >
+                購入手続きへ
+              </button>
             </div>
           </div>
         </div>
       </Card>
 
-      {/* ボトムバー（中央寄せ） */}
+      {/* ボトムバー（中央寄せ & カート統合） */}
       <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30">
         <div className="pointer-events-auto mx-auto max-w-xl w-[92%]">
           <div className="rounded-2xl border bg-white/95 backdrop-blur shadow-lg px-4 py-3">
@@ -608,13 +665,64 @@ export default function Shop() {
                 <div className="text-xs text-neutral-600">現在の見積 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）</div>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" className="px-4 py-2 rounded-xl border text-sm hover:bg-neutral-50" onClick={addToCart}>カートへ</button>
-                <button type="button" className="px-4 py-2 rounded-xl bg-black text-white text-sm" onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}>購入</button>
+                <button type="button" className="px-3 py-2 rounded-xl border text-xs hover:bg-neutral-50" onClick={() => setShowCart((v) => !v)}>
+                  カートを見る
+                </button>
+                <button type="button" className="px-3 py-2 rounded-xl border text-xs hover:bg-neutral-50" onClick={addToCart}>
+                  カートへ
+                </button>
+                <button type="button" className="px-3 py-2 rounded-xl bg-black text-white text-xs" onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}>
+                  購入
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* カートドロワー */}
+      {showCart && (
+        <div className="fixed inset-0 z-40">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowCart(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-xl p-4 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold">カート</div>
+              <button className="px-3 py-1 rounded border text-sm" onClick={() => setShowCart(false)}>閉じる</button>
+            </div>
+            {cart.length === 0 ? (
+              <div className="text-sm text-neutral-500 mt-3">カートは空です。</div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {cart.map((l) => (
+                  <div key={l.id} className="border rounded-lg p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-medium">{l.title}</div>
+                        <div className="text-xs text-neutral-600">単価 ¥{fmt(l.unitPrice)} / 数量 {l.qty}</div>
+                      </div>
+                      <button className="text-xs px-2 py-1 rounded border hover:bg-neutral-50" onClick={() => removeCartLine(l.id)}>
+                        削除
+                      </button>
+                    </div>
+                    {l.options.length > 0 && (
+                      <ul className="text-xs text-neutral-700 list-disc ml-5 mt-1 space-y-0.5">
+                        {l.options.map((o, i) => (
+                          <li key={i}>{o}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+                <div className="border-t pt-2 text-sm">
+                  <div className="flex justify-between"><span>小計</span><span>¥{fmt(cartMerch)}</span></div>
+                  <div className="flex justify-between text-neutral-600"><span>送料</span><span>{cartShipping === 0 ? "¥0（送料無料）" : `¥${fmt(cartShipping)}`}</span></div>
+                  <div className="flex justify-between font-semibold"><span>合計</span><span>¥{fmt(cartTotal)}</span></div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-[110px] z-40 px-4 py-2 rounded-xl bg-black text-white text-sm shadow">
