@@ -5,9 +5,8 @@ import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview
 import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 
-/** 追加: 分割済みコンポーネント（PR1） */
+/** 追加: アコーディオン型ボトムバー */
 import BottomBar from "../components/BottomBar";
-import MiniCart from "../components/MiniCart";
 
 /** ----------------- 型・定数 ----------------- */
 type Flow = "original_single" | "fullset" | "regular";
@@ -16,9 +15,9 @@ type CartItem = {
   id: string;
   title: string;
   qty: number;
-  unit: number;       // 商品単価
-  optionUnit: number; // オプション単価（単価扱い）
-  discount: number;   // 行全体に対する割引額（見積の割引額と一致）
+  unit: number;
+  optionUnit: number;
+  discount: number;
   note?: string;
   extras: { label: string; unit: number }[];
 };
@@ -99,6 +98,7 @@ function cryptoRandom() {
 /** ----------------- 本体 ----------------- */
 const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const selectRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollToSelect = () => selectRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   // フロー・バリアント
@@ -135,9 +135,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [optKeyholder, setOptKeyholder] = useState(false);
   const [optKiribako4, setOptKiribako4] = useState(false);
 
-  // ミニカート
+  // ミニカート（簡易）表示用の配列
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [miniCartOpen, setMiniCartOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   /** フルセットでは「名前入れ」を非表示 → 自動で切替 */
@@ -146,7 +145,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     setOriginalSub(flow === "fullset" ? "fullset" : "single");
     if (flow === "regular") {
       setVariant("default");
-      if (designType !== "name_print") setDesignType("name_print"); // regularでは影響しないが整合のため
+      if (designType !== "name_print") setDesignType("name_print");
     } else if (variant === "default") {
       setVariant("standard");
     }
@@ -241,7 +240,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     return `オリジナル麻雀牌（${variant === "standard" ? "28mm" : "30mm"}${flow === "fullset" ? "／フルセット" : ""}）`;
   }, [flow, variant, regularBack, regularSuit, regularNumber, regularHonor]);
 
-  /** ファイル選択 */
+  /** ファイル選択（1ボタン化） */
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const fs = Array.from(e.target.files || []);
@@ -273,8 +272,22 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       note,
       extras: extraDetails.map((d) => ({ label: d.label, unit: d.amount })),
     };
-    setCartItems((prev) => [...prev, item]);
-    setMiniCartOpen(true);
+    setCartItems((prev) => {
+      // 同一商品（タイトル・単価一致）はマージ（任意ロジック）
+      const idx = prev.findIndex(
+        (p) => p.title === item.title && p.unit === item.unit && p.optionUnit === item.optionUnit
+      );
+      if (idx >= 0) {
+        const copy = prev.slice();
+        copy[idx] = {
+          ...copy[idx],
+          qty: copy[idx].qty + item.qty,
+          discount: copy[idx].discount + item.discount,
+        };
+        return copy;
+      }
+      return [...prev, item];
+    });
     setToast("カートに追加しました");
     setTimeout(() => setToast(null), 1200);
   };
@@ -564,16 +577,23 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
-                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border cursor-pointer shadow-sm">
-                      <span>ファイルを選択</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*,application/pdf,.psd,.ai,.tiff,.tif,.heic"
-                        onChange={onPickFiles}
-                        className="hidden"
-                      />
-                    </label>
+
+                    {/* 1ボタン化：ネイティブの重複ボタンを排除 */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*,application/pdf,.psd,.ai,.tiff,.tif,.heic"
+                      onChange={onPickFiles}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border shadow-sm text-sm"
+                    >
+                      ファイルを選択
+                    </button>
 
                     {files.length > 0 && (
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mt-3">
@@ -740,7 +760,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               )}
             </div>
 
-            {/* オプション計算に関わる注記だけを表示（明細は見積側に出ます） */}
+            {/* オプション計算に関わる注記だけを表示（明細は見積側） */}
             <div className="text-xs text-neutral-600">
               <ul className="list-disc ml-5 space-y-1">
                 {designType === "bring_own" && (
@@ -821,18 +841,19 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </p>
             </div>
 
+            {/* ボタンは小型・シンプルに */}
             <div className="flex items-end justify-end gap-2">
               <button
                 type="button"
                 onClick={addToCart}
-                className="px-5 py-3 rounded-2xl border shadow-sm bg-white hover:bg-neutral-50"
+                className="px-4 py-2 rounded-xl border bg-white text-sm hover:bg-neutral-50"
               >
                 カートに追加
               </button>
               <button
                 type="button"
-                onClick={() => setMiniCartOpen(true)}
-                className="px-5 py-3 rounded-2xl bg-black text-white shadow"
+                onClick={() => alert("カートは下のバーから確認できます")}
+                className="px-4 py-2 rounded-xl bg-black text-white text-sm"
               >
                 カートを見る
               </button>
@@ -841,59 +862,20 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         </Card>
       </section>
 
-      {/* ===== PR1のBottomBarを使用（全幅固定・中央寄せ） ===== */}
+      {/* ===== アコーディオン式ボトムバー（ミニカートボタンは無し） ===== */}
       <BottomBar
         subtotal={merchandiseSubtotal}
         shipping={shipping}
         total={total}
         onAddToCart={addToCart}
-        onOpenMiniCart={() => setMiniCartOpen(true)}
+        items={cartItems.map((ci) => ({
+          id: ci.id,
+          title: ci.title,
+          qty: ci.qty,
+          lineTotal: ci.qty * (ci.unit + ci.optionUnit),
+        }))}
         disabled={false}
       />
-
-      {/* ===== PR1のMiniCartを使用（ボトムバー直上センター表示） ===== */}
-      <MiniCart open={miniCartOpen} onClose={() => setMiniCartOpen(false)}>
-        {cartItems.length === 0 ? (
-          <div className="text-sm text-neutral-600 p-6 text-center">カートは空です。</div>
-        ) : (
-          <>
-            <ul className="divide-y">
-              {cartItems.map((ci) => (
-                <li key={ci.id} className="py-3 text-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{ci.title}</div>
-                      <div className="text-neutral-600">数量：{ci.qty}</div>
-                      {ci.note && <div className="text-xs text-neutral-600 mt-1">備考：{ci.note}</div>}
-                      {ci.extras.length > 0 && (
-                        <ul className="text-xs list-disc list-inside mt-1 space-y-1 text-neutral-700">
-                          {ci.extras.map((e, i) => (
-                            <li key={i}>
-                              {e.label}：¥{fmt(e.unit)}（単価）
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <div className="text-right whitespace-nowrap">小計：¥{fmt(lineTotal(ci))}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-3 border-t pt-3 text-right space-y-1">
-              <div className="text-lg font-semibold">
-                合計：¥
-                {fmt(
-                  cartItems.reduce((s, it) => s + lineTotal(it), 0) -
-                    cartItems.reduce((s, it) => s + it.discount, 0)
-                )}
-              </div>
-              <button className="mt-2 px-5 py-2 rounded-xl bg-black text-white">この内容で注文（ダミー）</button>
-            </div>
-          </>
-        )}
-      </MiniCart>
 
       {/* トースト */}
       {toast && (
