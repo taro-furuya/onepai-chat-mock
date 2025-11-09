@@ -15,6 +15,7 @@ type Props = {
   discount: number;        // 割引合計（赤字表示）
   total: number;           // 合計（=小計+送料）
   onAddToCart: () => void;
+  onRemoveItem: (id: string) => void;
   items: CartRow[];
   disabled?: boolean;
   onOpenHeightChange?: (extraHeight: number) => void; // バー総高さを親へ通知
@@ -26,6 +27,7 @@ export default function BottomBar({
   discount,
   total,
   onAddToCart,
+  onRemoveItem,
   items,
   disabled,
   onOpenHeightChange,
@@ -96,7 +98,16 @@ export default function BottomBar({
                         </ul>
                       )}
                     </div>
-                    <div className="whitespace-nowrap">小計：¥{it.lineTotal.toLocaleString()}</div>
+                    <div className="flex items-start gap-3 shrink-0">
+                      <div className="whitespace-nowrap mt-0.5">小計：¥{it.lineTotal.toLocaleString()}</div>
+                      <button
+                        className="px-2 py-1 text-xs rounded border hover:bg-neutral-50"
+                        onClick={() => onRemoveItem(it.id)}
+                        aria-label="この商品を削除"
+                      >
+                        削除
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -105,20 +116,22 @@ export default function BottomBar({
         </div>
       )}
 
-      {/* アクション＆金額表示 */}
+      {/* アクション＆金額表示（合計を大きく、割引と重ならないレイアウト） */}
       <div
         ref={actionsRef}
-        className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between"
+        className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-4"
       >
-        <div className="text-sm flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <div className="text-sm flex flex-wrap items-baseline gap-x-5 gap-y-1">
           <span>小計: <b>¥{subtotal.toLocaleString()}</b></span>
           <span>送料: {shipping === 0 ? "¥0（無料）" : `¥${shipping.toLocaleString()}`}</span>
           <span className="text-red-600">割引: -¥{discount.toLocaleString()}</span>
-          <span className="text-base md:text-lg font-semibold">合計: ¥{total.toLocaleString()}</span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl md:text-3xl font-extrabold whitespace-nowrap">
+            合計: ¥{total.toLocaleString()}
+          </div>
           <button
-            className="px-5 py-2 rounded-xl bg-black text-white disabled:opacity-50 text-sm"
+            className="h-10 px-6 rounded-xl bg-black text-white disabled:opacity-50 text-sm"
             onClick={onAddToCart}
             disabled={disabled}
             aria-label="カートに追加"
@@ -126,7 +139,7 @@ export default function BottomBar({
             カートに追加
           </button>
           <button
-            className="px-5 py-2 rounded-xl border text-sm"
+            className="h-10 px-6 rounded-xl border text-sm"
             onClick={() => alert("チェックアウトはモックです")}
           >
             購入手続きへ
