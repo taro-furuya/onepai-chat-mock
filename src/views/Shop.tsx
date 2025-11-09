@@ -33,7 +33,7 @@ const PRICING = {
     design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
     design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
     multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" },
+    rainbow: { priceIncl: 800, label: "レインボー" }, // ¥800（要件どおり）
     kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
     bring_own_color_unit: { priceIncl: 200, label: "持ち込み追加色（1色）" },
   },
@@ -67,21 +67,24 @@ const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   },
 ];
 
-// 円形スウォッチ
-const renderColorDot = (css: string) => {
+// ●スウォッチ（1行ラベル用）
+const SwatchLabel: React.FC<{ css: string; label: string }> = ({ css, label }) => {
   const isGrad = css.startsWith("linear-gradient");
   return (
-    <span
-      aria-hidden
-      className="inline-block mr-2 rounded-full align-[-2px]"
-      style={{
-        width: 14,
-        height: 14,
-        background: isGrad ? undefined : css,
-        backgroundImage: isGrad ? css : undefined,
-        border: "1px solid #e5e7eb",
-      }}
-    />
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <span
+        aria-hidden
+        className="inline-block rounded-full align-[-1px]"
+        style={{
+          width: 14,
+          height: 14,
+          background: isGrad ? undefined : css,
+          backgroundImage: isGrad ? css : undefined,
+          border: "1px solid #e5e7eb",
+        }}
+      />
+      <span className="text-[13px] leading-none">{label}</span>
+    </span>
   );
 };
 
@@ -138,15 +141,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
-  // ボトムバーの高さに応じた余白
-  const [bottomExtraSpace, setBottomExtraSpace] = useState<number>(120);
+  // ボトムバーの高さに応じた余白（広めに確保）
+  const [bottomExtraSpace, setBottomExtraSpace] = useState<number>(160);
 
-  // キーホルダー数量は注文数量を上限に（qty変更時にもケア）
+  // キーホルダー数量は注文数量を上限
   useEffect(() => {
     setKeyholderQty((v) => (v > qty ? qty : v));
   }, [qty]);
 
-  /** フルセットでは「名前入れ」を非表示 → 自動で切替 */
+  /** フロー整合 */
   useEffect(() => {
     if (flow === "fullset" && designType === "name_print") setDesignType("bring_own");
     setOriginalSub(flow === "fullset" ? "fullset" : "single");
@@ -158,7 +161,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-  /** ----- 単価・オプション内訳 ----- */
+  /** 単価・オプション内訳 */
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
     const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
@@ -188,7 +191,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
     if (isSingle && designType === "name_print") {
       if (useUnifiedColor && unifiedColor === "rainbow") {
-        out.push({ label: PRICING.options.rainbow.label, amount: PRICING.options.rainbow.priceIncl });
+        out.push({ label: PRICING.options.rainbow.label, amount: PRICING.options.rainbow.priceIncl }); // ¥800
       } else if (!useUnifiedColor) {
         const uniq = Array.from(new Set(perCharColors));
         const add = Math.max(0, uniq.length - 1);
@@ -201,7 +204,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       }
     }
 
-    // 数量型オプション
+    // 数量型OP
     if (keyholderQty > 0 && flow !== "fullset") {
       out.push({
         label: `${PRICING.options.keyholder.label} × ${keyholderQty}`,
@@ -295,7 +298,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     regularHonor,
   ]);
 
-  /** ファイル選択（右側ボタンのみ） */
+  /** ファイル選択（ボタン1つだけ） */
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const fs = Array.from(e.target.files || []);
@@ -315,7 +318,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
 
   /** カート操作 */
-  const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit) - ci.discount; // 行の割引控除後
+  const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit) - ci.discount;
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
@@ -351,16 +354,21 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     setTimeout(() => setToast(null), 1200);
   };
 
-  /** ===== カート全体の金額計算（バー表示用） ===== */
+  /** ===== カート全体の金額（ボトムバー表示用） ===== */
   const cartGross = cartItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
   const cartDiscount = cartItems.reduce((s, it) => s + it.discount, 0);
   const cartMerchandiseSubtotal = Math.max(0, cartGross - cartDiscount);
-  const cartShipping = cartMerchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : (cartMerchandiseSubtotal > 0 ? PRICING.shipping.flat : 0);
+  const cartShipping =
+    cartMerchandiseSubtotal >= PRICING.shipping.freeOver
+      ? 0
+      : cartMerchandiseSubtotal > 0
+      ? PRICING.shipping.flat
+      : 0;
   const cartTotal = cartMerchandiseSubtotal + cartShipping;
 
   /** ----------------- UI ----------------- */
   return (
-    <div style={{ paddingBottom: bottomExtraSpace + 24 }}>
+    <div style={{ paddingBottom: bottomExtraSpace + 64 }}>
       <Hero onPrimary={scrollToSelect} onSecondary={gotoCorporate} />
 
       <section style={containerStyle} className="mt-6 space-y-6">
@@ -423,22 +431,14 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               <div className="mt-3 text-xs text-neutral-600 space-y-1">
                 {flow === "original_single" && (
                   <>
-                    <div>
-                      発送目安：<b>約2〜3週間</b>
-                    </div>
-                    <div>
-                      割引：<b>5個で10%</b> / <b>10個で15%</b>
-                    </div>
+                    <div>発送目安：<b>約2〜3週間</b></div>
+                    <div>割引：<b>5個で10%</b> / <b>10個で15%</b></div>
                   </>
                 )}
                 {flow === "fullset" && (
                   <>
-                    <div>
-                      発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）
-                    </div>
-                    <div>
-                      割引：<b>5セットで20%</b>
-                    </div>
+                    <div>発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）</div>
+                    <div>割引：<b>5セットで20%</b></div>
                   </>
                 )}
               </div>
@@ -453,56 +453,35 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <label className="w-24">背面色</label>
-                  <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>
-                    黄色
-                  </Pill>
-                  <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>
-                    青色
-                  </Pill>
+                  <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>黄色</Pill>
+                  <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>青色</Pill>
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="w-24">種別</label>
-                  <Pill active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>
-                    字牌
-                  </Pill>
-                  <Pill active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>
-                    萬子
-                  </Pill>
-                  <Pill active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>
-                    索子
-                  </Pill>
-                  <Pill active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>
-                    筒子
-                  </Pill>
+                  <Pill active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>字牌</Pill>
+                  <Pill active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
+                  <Pill active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
+                  <Pill active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
                 </div>
                 {regularSuit === "honor" ? (
                   <div className="flex items-center gap-2">
                     <label className="w-24">字牌</label>
-                    {["東", "南", "西", "北", "白", "發", "中"].map((h) => (
-                      <Pill key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>
-                        {h}
-                      </Pill>
+                    {["東","南","西","北","白","發","中"].map((h) => (
+                      <Pill key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>{h}</Pill>
                     ))}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <label className="w-24">数字</label>
                     {Array.from({ length: 9 }).map((_, i) => (
-                      <Pill key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>
-                        {i + 1}
-                      </Pill>
+                      <Pill key={i+1} active={regularNumber === i+1} onClick={() => setRegularNumber(i+1)}>{i+1}</Pill>
                     ))}
                   </div>
                 )}
               </div>
 
               <div className="flex justify-center">
-                <RegularTilePreview
-                  back={regularBack}
-                  suit={regularSuit}
-                  number={regularNumber}
-                  honor={regularHonor}
-                />
+                <RegularTilePreview back={regularBack} suit={regularSuit} number={regularNumber} honor={regularHonor} />
               </div>
             </div>
           </Card>
@@ -510,17 +489,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           <Card title="2. デザイン">
             {/* デザイン方式 */}
             <div className="flex flex-wrap gap-2">
-              {flow !== "fullset" && (
-                <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
-                  名前入れ
-                </Pill>
-              )}
-              <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>
-                デザイン持ち込み
-              </Pill>
-              <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>
-                デザイン依頼
-              </Pill>
+              {flow !== "fullset" && <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>名前入れ</Pill>}
+              <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>デザイン持ち込み</Pill>
+              <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>デザイン依頼</Pill>
             </div>
 
             {/* 名前入れ */}
@@ -539,52 +510,37 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
                   <div className="flex items-center gap-2">
                     <label className="w-24">レイアウト</label>
-                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>
-                      縦
-                    </Pill>
-                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>
-                      横
-                    </Pill>
+                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <label className="w-24">フォント</label>
-                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>
-                      萬子風
-                    </Pill>
-                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>
-                      ゴシック
-                    </Pill>
-                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>
-                      明朝
-                    </Pill>
+                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
+                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
                   </div>
 
-                  {/* 色指定（スウォッチ＋1行ラベル） */}
+                  {/* 色指定（●スウォッチ＋1行ラベル／2段折りOK） */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <label className="w-24">色指定</label>
-                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>
-                        一括指定
-                      </Pill>
-                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>
-                        1文字ずつ
-                      </Pill>
+                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
+                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
                     </div>
 
                     {useUnifiedColor ? (
                       <div className="pl-24 flex flex-wrap gap-2 items-center">
                         {COLOR_LIST.map((c) => (
                           <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
-                            {renderColorDot(c.css)}
-                            <span className="whitespace-nowrap leading-none">{c.label}</span>
+                            <SwatchLabel css={c.css} label={c.label} />
                           </Pill>
                         ))}
                       </div>
                     ) : (
                       <div className="pl-24 space-y-2">
                         {splitChars(text || "麻雀").map((ch, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
+                          <div key={idx} className="flex items-center gap-3">
                             <div className="w-6 text-center text-sm">{ch}</div>
                             <div className="flex flex-wrap gap-2">
                               {COLOR_LIST.map((c) => (
@@ -597,8 +553,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                                     setPerCharColors(arr);
                                   }}
                                 >
-                                  {renderColorDot(c.css)}
-                                  <span className="whitespace-nowrap leading-none">{c.label}</span>
+                                  <SwatchLabel css={c.css} label={c.label} />
                                 </Pill>
                               ))}
                             </div>
@@ -621,7 +576,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   </div>
                 </div>
 
-                {/* プレビュー（別列に） */}
+                {/* プレビュー */}
                 <div className="md:col-span-2 flex justify-center">
                   <NameTilePreview
                     text={text || "麻雀"}
@@ -641,6 +596,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
+                    {/* ブラウザ標準の表示を完全に隠す */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -648,6 +604,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                       accept="image/*,application/pdf,.psd,.ai,.tiff,.tif,.heic"
                       onChange={onPickFiles}
                       className="hidden"
+                      style={{ display: "none" }}
+                      aria-hidden="true"
                     />
                     <button
                       type="button"
@@ -736,12 +694,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         {(flow === "original_single" || flow === "fullset") && (
           <Card title="3. サイズ選択">
             <div className="flex gap-2">
-              <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>
-                28mm
-              </Pill>
-              <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>
-                30mm
-              </Pill>
+              <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>28mm</Pill>
+              <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>30mm</Pill>
             </div>
 
             {/* 対応機種 */}
@@ -819,7 +773,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   onChange={(e) => {
                     let v = Math.max(0, Math.floor(Number(e.target.value)));
                     if (!Number.isFinite(v)) v = 0;
-                    if (v > qty) v = qty;              // 上限：注文数量
+                    if (v > qty) v = qty; // 上限：注文数量
                     setKeyholderQty(v);
                   }}
                   className="border rounded px-3 py-2 w-24"
@@ -846,14 +800,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     pattern="[0-9]*"
                     min={0}
                   />
-                  <span className="text-xs text-neutral-600">
-                    （1個あたり ¥{fmt(PRICING.options.kiribako_4.priceIncl)}）※4枚用／28mm専用
-                  </span>
+                  <span className="text-xs text-neutral-600">（1個あたり ¥{fmt(PRICING.options.kiribako_4.priceIncl)}）※4枚用／28mm専用</span>
                 </div>
               )}
             </div>
 
-            {/* 注記（重複しないよう1つだけ） */}
+            {/* 注記（重複防止） */}
             <div className="text-xs text-neutral-600">
               <ul className="list-disc ml-5 space-y-1">
                 <li>桐箱は4枚用です。28mm専用となります。</li>
@@ -862,7 +814,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 6. 見積（小計行・注釈は非表示） */}
+        {/* 6. 見積（ボタンはボトムバーと同サイズ） */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -872,20 +824,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <td className="py-1 text-neutral-600">商品（単価）</td>
                     <td className="py-1 text-right">¥{fmt(productUnit)}</td>
                   </tr>
-
-                  {/* オプション（単価） */}
                   {extraDetails.map((d, i) => (
                     <tr key={i}>
                       <td className="py-1 text-neutral-600">{d.label}（単価）</td>
                       <td className="py-1 text-right">¥{fmt(d.amount)}</td>
                     </tr>
                   ))}
-
                   <tr>
                     <td className="py-1 text-neutral-600">数量</td>
                     <td className="py-1 text-right">× {qty}</td>
                   </tr>
-
                   {discountRate > 0 && (
                     <tr>
                       <td className="py-1 text-emerald-700 font-semibold">
@@ -894,38 +842,23 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                       <td className="py-1 text-right text-emerald-700 font-semibold">-¥{fmt(discountAmount)}</td>
                     </tr>
                   )}
-
                   <tr>
                     <td className="py-1 text-neutral-600">送料</td>
-                    <td className="py-1 text-right">
-                      {shippingBySelection === 0 ? "¥0（送料無料）" : `¥${fmt(shippingBySelection)}`}
-                    </td>
+                    <td className="py-1 text-right">{shippingBySelection === 0 ? "¥0（送料無料）" : `¥${fmt(shippingBySelection)}`}</td>
                   </tr>
-
                   <tr>
                     <td className="py-1 font-semibold">合計</td>
-                    <td className="py-1 text-right font-semibold">
-                      ¥{fmt(merchandiseSubtotal + shippingBySelection)}
-                    </td>
+                    <td className="py-1 text-right font-semibold">¥{fmt(merchandiseSubtotal + shippingBySelection)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* ボタン：横長・小さめ */}
             <div className="flex items-end justify-end gap-2">
-              <button
-                type="button"
-                onClick={addToCart}
-                className="px-6 py-2 rounded-xl border bg-white text-sm hover:bg-neutral-50"
-              >
+              <button type="button" onClick={addToCart} className="px-5 py-2 rounded-xl border bg-white text-sm hover:bg-neutral-50">
                 カートに追加
               </button>
-              <button
-                type="button"
-                onClick={() => alert('チェックアウトはモックです')}
-                className="px-6 py-2 rounded-xl bg-black text-white text-sm"
-              >
+              <button type="button" onClick={() => alert('チェックアウトはモックです')} className="px-5 py-2 rounded-xl bg-black text-white text-sm">
                 購入手続きへ
               </button>
             </div>
@@ -933,7 +866,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         </Card>
       </section>
 
-      {/* ===== アコーディオン式ボトムバー（カート全体の金額を表示） ===== */}
+      {/* ===== ボトムバー（カート全体の金額） ===== */}
       <BottomBar
         subtotal={cartMerchandiseSubtotal}
         shipping={cartShipping}
