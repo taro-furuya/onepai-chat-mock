@@ -4,20 +4,20 @@ type CartRow = {
   id: string;
   title: string;
   qty: number;
-  lineTotal: number;       // （この行の）割引後小計
-  details?: string[];      // デザイン内容など
+  lineTotal: number;       // 行の割引控除後小計
+  details?: string[];      // デザイン内容
   options?: string[];      // オプション明細
 };
 
 type Props = {
-  subtotal: number;        // カート小計（割引後／送料前）
-  shipping: number;        // 送料（小計に応じた実額）
+  subtotal: number;        // 小計（=商品+OP-割引）
+  shipping: number;        // 送料
   discount: number;        // 割引合計
-  total: number;           // 支払合計（小計＋送料）
+  total: number;           // 合計（=小計+送料）
   onAddToCart: () => void;
   items: CartRow[];
   disabled?: boolean;
-  onOpenHeightChange?: (extraHeight: number) => void; // バーの総高さを親へ通知
+  onOpenHeightChange?: (extraHeight: number) => void; // バー総高さを親へ通知
 };
 
 export default function BottomBar({
@@ -37,7 +37,7 @@ export default function BottomBar({
 
   const itemCount = useMemo(() => items.reduce((s, it) => s + it.qty, 0), [items]);
 
-  // 高さ通知（重なり防止）
+  // 展開状態や内容に応じて高さ通知（被り防止）
   useEffect(() => {
     const h =
       (headerRef.current?.offsetHeight || 0) +
@@ -47,7 +47,7 @@ export default function BottomBar({
   }, [open, items, onOpenHeightChange]);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur border-t">
+    <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur border-t shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
       {/* ヘッダー（中央コンテナ） */}
       <button
         type="button"
@@ -59,19 +59,13 @@ export default function BottomBar({
           ref={headerRef}
           className="mx-auto max-w-5xl px-4 py-2 flex items-center justify-between"
         >
-          <div className="text-sm flex items-center gap-3 mx-auto">
+          <div className="text-sm flex items-center gap-4 mx-auto">
             <span className="inline-flex items-center text-xs rounded-full border px-2 py-0.5">
               カート {itemCount} 件
             </span>
-            <span className="text-neutral-600">
-              小計: <b>¥{subtotal.toLocaleString()}</b>
-            </span>
-            <span className="text-neutral-600">
-              送料: {shipping === 0 ? "¥0（無料）" : `¥${shipping.toLocaleString()}`}
-            </span>
-            <span className="text-neutral-600">
-              割引: <b>-¥{discount.toLocaleString()}</b>
-            </span>
+            <span className="text-neutral-700">小計: <b>¥{subtotal.toLocaleString()}</b></span>
+            <span className="text-neutral-700">送料: {shipping === 0 ? "¥0（無料）" : `¥${shipping.toLocaleString()}`}</span>
+            <span className="text-neutral-700">割引: <b>-¥{discount.toLocaleString()}</b></span>
           </div>
           <div className="text-xs shrink-0 ml-3">{open ? "閉じる ▲" : "中身を表示 ▼"}</div>
         </div>
@@ -117,10 +111,10 @@ export default function BottomBar({
       {/* アクション行（中央コンテナ） */}
       <div
         ref={actionsRef}
-        className="mx-auto max-w-5xl px-4 py-2 flex items-center justify-between"
+        className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between"
       >
         <div className="text-sm mx-auto">
-          合計: <span className="font-semibold">¥{total.toLocaleString()}</span>
+          合計（= 小計 + 送料）： <span className="font-semibold">¥{total.toLocaleString()}</span>
         </div>
         <div className="flex gap-2">
           <button
