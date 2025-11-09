@@ -1,43 +1,38 @@
 import React from "react";
 
-const Hero: React.FC<{ onPrimary: () => void; onSecondary: () => void }> = ({
-  onPrimary,
-  onSecondary,
-}) => {
+const Hero: React.FC<{ onPrimary?: () => void; onSecondary?: () => void }> = ({ onPrimary, onSecondary }) => {
   return (
-    <section className="rounded-2xl border shadow-sm overflow-hidden mt-4">
-      {/* 透けない実体背景（純色→微グラデ） */}
+    <section
+      className="relative overflow-hidden"
+      style={{ minHeight: 240 }}
+    >
+      {/* 背景：濃いグラデ＋放射（視認性重視） */}
       <div
-        className="px-6 md:px-10 py-6 md:py-9"
+        aria-hidden
+        className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg,#0b0b0c 0%,#15181e 60%,#1f2530 100%)",
-          color: "#fff",
+            "linear-gradient(135deg, rgba(10,10,10,.92) 0%, rgba(10,10,10,.86) 40%, rgba(10,10,10,.82) 100%)",
         }}
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl md:text-3xl font-bold">one牌｜AIチャット購入体験 モック</h1>
-            <p className="text-neutral-200/95 text-xs md:text-sm mt-1">
-              チャットの流れで、そのままオリジナル麻雀牌を注文できるUIの試作です。
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onPrimary}
-              className="px-4 md:px-5 py-2 md:py-3 rounded-xl bg-white text-neutral-900 shadow text-xs md:text-base font-medium"
-            >
-              オリジナル麻雀牌を作ってみる
-            </button>
-            <button
-              type="button"
-              onClick={onSecondary}
-              className="hidden md:inline-block px-4 md:px-5 py-2 md:py-3 rounded-xl bg-white/95 text-neutral-900 shadow text-xs md:text-base font-medium"
-            >
-              法人お問い合わせ
-            </button>
-          </div>
+      />
+      <div
+        aria-hidden
+        className="absolute -top-20 -right-24 w-[560px] h-[560px] rounded-full"
+        style={{
+          background: "radial-gradient(closest-side, rgba(255,255,255,.08), transparent 70%)",
+          filter: "blur(16px)",
+        }}
+      />
+      <div className="relative container-narrow px-4 py-10">
+        <h1 className="text-white text-[clamp(28px,3.2vw,36px)] font-semibold tracking-tight">
+          オンリーワンなオリジナル麻雀牌をつくるなら、one牌
+        </h1>
+        <p className="text-neutral-200 mt-2 text-sm">
+          名前入れ・デザイン持ち込み・フルセット制作まで、シンプルな流れで。
+        </p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <button className="btn-primary border-white" onClick={onPrimary}>作ってみる</button>
+          <button className="btn-ghost" onClick={onSecondary}>法人問い合わせ</button>
         </div>
       </div>
     </section>
