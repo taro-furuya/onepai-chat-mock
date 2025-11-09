@@ -4,7 +4,7 @@ type CartRow = {
   id: string;
   title: string;
   qty: number;
-  lineTotal: number; // 小計（この行の合計）
+  lineTotal: number; // この行の小計
 };
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
   shipping: number;
   total: number;
   onAddToCart: () => void;
-  items: CartRow[];        // アコーディオンで表示する簡易カート
+  items: CartRow[];   // アコーディオンで表示する簡易カート
   disabled?: boolean;
 };
 
