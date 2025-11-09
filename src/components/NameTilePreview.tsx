@@ -1,181 +1,244 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+/*
+  one牌｜AIチャット購入体験 モック（プレビュー改善版 v7.7.0 移植版）
+  - 既定テキスト「麻雀」
+  - 2文字以上・2行時の文字サイズを最大約1.5倍まで拡大（はみ出し防止上限あり）
+  - 縦：2行時は右→左（縦書き）、横：上→下（横書き）
+  - レインボーは上下グラデーション（vertical）
+  - 色一括/個別 両対応
+  - 簡易スモークテスト付き
+*/
 
-export type Layout = "vertical" | "horizontal";
-export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
+import React, { useEffect, useMemo } from "react";
 
-const COLORS: Record<ColorKey, { css: string; gradient?: boolean }> = {
-  black: { css: "#0a0a0a" },
-  red: { css: "#d10f1b" },
-  blue: { css: "#1e5ad7" },
-  green: { css: "#2e7d32" },
-  pink: { css: "#e24a86" },
-  rainbow: {
-    css:
-      "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
-    gradient: true,
-  },
-};
+// ===== 色パレット =====
+const PALETTE = [
+  { key: "black", label: "ブラック", css: "#0a0a0a" },
+  { key: "red", label: "レッド", css: "#d10f1b" },
+  { key: "blue", label: "ブルー", css: "#1f57c3" },
+  { key: "green", label: "グリーン", css: "#0d7a3a" },
+  { key: "pink", label: "ピンク", css: "#e75480" },
+  // レインボーは上下グラデーション
+  { key: "rainbow", label: "レインボー", css: "linear-gradient(180deg,#d10f1b,#ff7a00,#ffd400,#1bb34a,#1f57c3,#7a2bc2)" },
+] as const;
 
+export type ColorKey = (typeof PALETTE)[number]["key"];
+const colorCss = (k: ColorKey) => PALETTE.find((p) => p.key === k)!.css as string;
+
+// ===== ユーティリティ =====
 const splitChars = (s: string) => Array.from(s || "");
-const ensureLen = (arr: ColorKey[], need: number): ColorKey[] => {
-  const out = arr.slice();
-  while (out.length < need) out.push("black");
-  return out.slice(0, need);
+
+// 4超で自動2行/2列
+function splitForTwoLines(chars: string[]) {
+  if (chars.length <= 4) return [chars];
+  const half = Math.ceil(chars.length / 2);
+  return [chars.slice(0, half), chars.slice(half)];
+}
+
+// ===== スモークテスト =====
+function runSmokeTests() {
+  try {
+    console.assert(
+      JSON.stringify(splitForTwoLines(["一", "二", "三", "四"])) ===
+        JSON.stringify([["一", "二", "三", "四"]]),
+      "split: <=4 stays one group"
+    );
+    const s2 = splitForTwoLines(["一", "二", "三", "四", "五"]);
+    console.assert(s2.length === 2 && s2[0].length === 3 && s2[1].length === 2, "split: 5 -> 3/2");
+    console.assert(colorCss("black").length > 0 && colorCss("rainbow").includes("linear-gradient"), "palette css ok");
+  } catch (e) {
+    console.warn("Smoke tests raised:", e);
+  }
+}
+
+// ===== Props =====
+export type Layout = "vertical" | "horizontal";
+
+export interface NameTilePreviewProps {
+  text: string;                           // 表示文字
+  layout: Layout;                         // 縦 or 横
+  useUnifiedColor: boolean;               // 色一括指定か
+  unifiedColor: ColorKey;                 // 一括指定の色
+  perCharColors: ColorKey[];              // 1文字ずつの色
+  fontKey?: "ta-fuga-fude" | "gothic" | "mincho"; // 任意。既定は ta-fuga-fude
+}
+
+// フォントスタック
+const FONT_STACKS: Record<NonNullable<NameTilePreviewProps["fontKey"]>, string> = {
+  "ta-fuga-fude": 'ta-fuga-fude, "TA風雅筆", "Yu Mincho", serif',
+  gothic: 'system-ui, -apple-system, "Noto Sans JP", sans-serif',
+  mincho: '"Yu Mincho", "Hiragino Mincho ProN", serif',
 };
 
-// 右→左の2段（縦：2列、横：2行）
-const splitToLines = (chars: string[]): [string[], string[]] => {
-  if (chars.length <= 4) return [chars, []];
-  const mid = Math.ceil(chars.length / 2);
-  return [chars.slice(0, mid), chars.slice(mid)];
-};
+// Typekit ローダ（重複起動ガード）
+function useTypekitOnce() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ((window as any).__onepai_typekit_loaded__) return;
+    (window as any).__onepai_typekit_loaded__ = true;
 
-type Props = {
-  text: string;
-  layout: Layout;
-  perCharColors: ColorKey[];
-  useUnifiedColor: boolean;
-  unifiedColor: ColorKey;
-};
+    (function (d: Document) {
+      const config = { kitId: "xew3lay", scriptTimeout: 3000, async: true } as const;
+      const h = d.documentElement;
+      const t = window.setTimeout(() => {
+        h.className = h.className.replace(/\bwf-loading\b/g, "") + " wf-inactive";
+      }, config.scriptTimeout);
+      const tk = d.createElement("script");
+      let f = false as boolean;
+      const s = d.getElementsByTagName("script")[0];
+      let a: string | undefined;
+      h.className += " wf-loading";
+      tk.src = "https://use.typekit.net/" + config.kitId + ".js";
+      (tk as any).async = true;
+      (tk.onload = tk.onreadystatechange = function () {
+        // @ts-ignore
+        a = this.readyState;
+        if (f || (a && a !== "complete" && a !== "loaded")) return;
+        f = true;
+        clearTimeout(t);
+        try {
+          // @ts-ignore
+          (window as any).Typekit.load(config);
+        } catch {}
+      }) as any;
+      s.parentNode?.insertBefore(tk, s);
+    })(document);
+  }, []);
+}
 
-const DEFAULT_TEXT = "麻雀";
-
-const NameTilePreview: React.FC<Props> = ({
+// ===== 本体コンポーネント =====
+const NameTilePreview: React.FC<NameTilePreviewProps> = ({
   text,
   layout,
-  perCharColors,
   useUnifiedColor,
   unifiedColor,
+  perCharColors,
+  fontKey = "ta-fuga-fude",
 }) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [box, setBox] = useState({ w: 0, h: 0 });
+  useTypekitOnce();
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const r = entry.contentRect;
-      setBox({ w: r.width, h: r.height });
-    });
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
+    runSmokeTests();
   }, []);
 
-  const chars = useMemo(() => splitChars(text || DEFAULT_TEXT), [text]);
-  const [lineR, lineL] = useMemo(() => splitToLines(chars), [chars]);
+  const chars = useMemo(() => splitChars(text || "麻雀"), [text]);
+  const groups = useMemo(() => splitForTwoLines(chars), [chars]);
 
-  // 色配列（行ごとに切り出し）
-  const colorsBase = useUnifiedColor
-    ? new Array(chars.length).fill(unifiedColor) as ColorKey[]
-    : ensureLen(perCharColors, chars.length);
+  // 牌のサイズ（固定で安定表示）
+  const width = layout === "vertical" ? 360 : 580; // px
+  const aspect = layout === "vertical" ? 21 / 28 : 28 / 21; // width/height
+  const height = Math.round(width / aspect);
+  const padding = 10;
+  const shortSide = Math.min(width, height) - padding * 2;
 
-  const colorsR = colorsBase.slice(0, lineR.length);
-  const colorsL = colorsBase.slice(lineR.length, lineR.length + lineL.length);
+  // フォントサイズ算出
+  const maxLenInGroup = groups.reduce((m, g) => Math.max(m, g.length), 0) || 1;
+  const columnCount = groups.length; // 1 or 2
+  const singleMax = Math.floor(shortSide * 0.85);
+  let fontSize: number;
 
-  // 文字サイズ：枠の90%以内で自動調整（1文字時ははみ出し防止係数を強めに）
-  const fontSizePx = useMemo(() => {
-    const pad = 24; // 内側余白
-    const w = Math.max(0, box.w - pad * 2);
-    const h = Math.max(0, box.h - pad * 2);
-    if (!w || !h) return 48;
+  if (chars.length === 1) {
+    fontSize = singleMax; // 1字は最大
+  } else if (columnCount === 1) {
+    const coeff = layout === "vertical" ? 0.86 : 0.82;
+    const base = (shortSide * coeff) / maxLenInGroup;
+    fontSize = Math.floor(Math.min(base * 1.5, singleMax)); // 最大1.5倍、上限は単字サイズ
+  } else {
+    const coeff = layout === "vertical" ? 0.86 : 0.8;
+    const base = (shortSide * coeff) / maxLenInGroup;
+    fontSize = Math.floor(Math.min(base * 1.5, singleMax * 0.9)); // 2列時は90%上限
+  }
 
-    const oneLine = chars.length <= 4;
-    if (layout === "vertical") {
-      const columns = oneLine ? 1 : 2;
-      const colW = w / columns;
-      const perColChars = oneLine ? chars.length : Math.ceil(chars.length / 2);
-      let size = Math.min(colW * 0.9, (h / perColChars) * 0.9);
-      if (chars.length === 1) size *= 0.85; // 1文字のはみ出し保険
-      if (!oneLine) size *= 0.95; // 2列時に少し余裕
-      return Math.floor(size);
-    } else {
-      const rows = oneLine ? 1 : 2;
-      const rowH = h / rows;
-      const perRowChars = oneLine ? chars.length : Math.ceil(chars.length / 2);
-      let size = Math.min((w / perRowChars) * 0.9, rowH * 0.9);
-      if (chars.length === 1) size *= 0.85;
-      if (!oneLine) size *= 0.95;
-      return Math.floor(size);
-    }
-  }, [box, layout, chars.length]);
+  // 色配列を決定（不足は黒で埋める）
+  const colorArray: ColorKey[] = useMemo(() => {
+    if (useUnifiedColor) return new Array(Math.max(1, chars.length)).fill(unifiedColor) as ColorKey[];
+    const need = Math.max(1, chars.length);
+    const out = (perCharColors || []).slice();
+    while (out.length < need) out.push("black");
+    return out.slice(0, need);
+  }, [useUnifiedColor, unifiedColor, perCharColors, chars.length]);
 
-  // 牌のアスペクト比
-  const ratio = layout === "vertical" ? 28 / 21 : 21 / 28; // width / height
-  const renderChar = (ch: string, key: string | number, color: ColorKey) => {
-    const c = COLORS[color];
-    const style: React.CSSProperties = c.gradient
-      ? { backgroundImage: c.css, WebkitBackgroundClip: "text", color: "transparent" }
-      : { color: c.css };
-    return (
-      <span key={key} style={style}>
-        {ch}
-      </span>
-    );
-  };
+  // CSS ヘルパ（レインボー塗り）
+  const colorStyle = (k: ColorKey): React.CSSProperties =>
+    k === "rainbow"
+      ? { background: colorCss(k), WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }
+      : { color: colorCss(k) };
+
+  const colorAt = (index: number): ColorKey => (colorArray[index] ? colorArray[index] : "black");
+  const fontFamily = FONT_STACKS[fontKey];
 
   return (
-    <div className="w-full">
-      <div
-        ref={containerRef}
-        className="mx-auto bg-white shadow-xl"
-        style={{
-          aspectRatio: `${ratio} / 1`,
-          borderRadius: 18,
-          border: "2px solid #111",
-          overflow: "hidden",
-        }}
-      >
-        <div className="h-full w-full" style={{ padding: 18 }}>
-          {layout === "vertical" ? (
-            <div className="h-full w-full flex flex-row-reverse gap-2">
-              {/* 右列 */}
-              <div
-                className="flex-1 h-full flex items-center justify-center"
-                style={{
-                  writingMode: "vertical-rl",
-                  fontSize: fontSizePx,
-                  lineHeight: 1,
-                  fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif",
-                }}
-              >
-                {lineR.map((ch, i) => renderChar(ch, i, colorsR[i] || "black"))}
-              </div>
-              {/* 左列 */}
-              {lineL.length > 0 && (
-                <div
-                  className="flex-1 h-full flex items-center justify-center"
-                  style={{
-                    writingMode: "vertical-rl",
-                    fontSize: fontSizePx,
-                    lineHeight: 1,
-                    fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif",
-                  }}
-                >
-                  {lineL.map((ch, i) => renderChar(ch, `L-${i}`, colorsL[i] || "black"))}
-                </div>
-              )}
+    <div
+      className="mx-auto select-none shadow-[0_8px_20px_rgba(0,0,0,.08)] bg-white"
+      style={{
+        width,
+        aspectRatio: `${aspect}`,
+        borderRadius: 18,
+        border: "3px solid #111", // 単一の枠線のみ
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding,
+      }}
+    >
+      {layout === "vertical" ? (
+        // 右→左の列順（row-reverse）
+        <div style={{ display: "flex", gap: 8, flexDirection: "row-reverse" }}>
+          {groups.map((col, ci) => (
+            <div
+              key={ci}
+              style={{
+                writingMode: "vertical-rl",
+                textOrientation: "upright",
+                fontFamily,
+                fontSize,
+                lineHeight: 1.05,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              {col.map((ch, i) => (
+                <span key={i} style={colorStyle(colorAt(ci * (groups[0].length || 0) + i))}>
+                  {ch}
+                </span>
+              ))}
             </div>
-          ) : (
-            <div className="h-full w-full flex flex-col justify-center gap-2">
-              {/* 1行目（右→左で画面上は普通に並べる） */}
-              <div
-                className="w-full text-center"
-                style={{ fontSize: fontSizePx, lineHeight: 1, fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif" }}
-              >
-                {lineR.map((ch, i) => renderChar(ch, i, colorsR[i] || "black"))}
-              </div>
-              {/* 2行目 */}
-              {lineL.length > 0 && (
-                <div
-                  className="w-full text-center"
-                  style={{ fontSize: fontSizePx, lineHeight: 1, fontFamily: "'Hiragino Mincho ProN','Yu Mincho',serif" }}
-                >
-                  {lineL.map((ch, i) => renderChar(ch, `H-${i}`, colorsL[i] || "black"))}
-                </div>
-              )}
-            </div>
-          )}
+          ))}
         </div>
-      </div>
+      ) : (
+        // 横は上→下に行（flex column）
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "92%", textAlign: "center" }}>
+          {groups.map((row, ri) => (
+            <div
+              key={ri}
+              style={{
+                fontFamily,
+                fontSize,
+                lineHeight: 1.0,
+                display: "flex",
+                justifyContent: "center",
+                gap: 8,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {row.map((ch, i) => (
+                <span key={i} style={colorStyle(colorAt(ri * (groups[0].length || 0) + i))}>
+                  {ch}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* フォント埋め込み（簡易） */}
+      <style>{`
+        @font-face {
+          font-family: 'ta-fuga-fude';
+          src: url('/assets/TA-Fugafude.woff2') format('woff2'),
+               url('/assets/TA-Fugafude.woff') format('woff');
+          font-weight: 400; font-style: normal; font-display: swap;
+        }
+      `}</style>
     </div>
   );
 };
