@@ -14,10 +14,10 @@ type CartItem = {
   flow: Flow;
   title: string;
   qty: number;
-  unit: number;
-  optionUnit: number;
+  unit: number;            // 商品単価
+  optionTotal: number;     // 行に紐づくオプション合計（数量とは無関係）
   note?: string;
-  extras: { label: string; unit: number }[];
+  extras: { label: string; unit: number }[];  // オプション内訳（行合計ベース）
   designDetails?: string[];
 };
 
@@ -67,7 +67,7 @@ const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   },
 ];
 
-// ●スウォッチ（1行ラベル）
+// ●カラーの丸スウォッチ＋1行ラベル
 const SwatchLabel: React.FC<{ css: string; label: string }> = ({ css, label }) => {
   const isGrad = css.startsWith("linear-gradient");
   return (
@@ -133,7 +133,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [bringOwnColorCount, setBringOwnColorCount] = useState<number>(1);
   const [files, setFiles] = useState<{ id: string; src: string; name: string; type: "image" | "file" }[]>([]);
 
-  // オプション（数量入力）
+  // オプション（数量入力）※牌の数量とは独立
   const [keyholderQty, setKeyholderQty] = useState<number>(0);
   const [kiribakoQty, setKiribakoQty] = useState<number>(0); // 4枚用・28mm専用
 
@@ -144,7 +144,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   // ボトムバーの高さに応じた余白
   const [bottomExtraSpace, setBottomExtraSpace] = useState<number>(160);
 
-  // キーホルダー数量は注文数量を上限
+  // キーホルダー数量上限は注文数量
   useEffect(() => {
     setKeyholderQty((v) => (v > qty ? qty : v));
   }, [qty]);
@@ -161,7 +161,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-  /** 単価・オプション内訳（色の料金ロジック） */
+  /** 単価・オプション内訳（色の料金ロジック修正） */
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
     const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
@@ -173,6 +173,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     const isFull = flow === "fullset";
     const isSingle = flow === "original_single";
 
+    // デザイン持ち込み
     if (designType === "bring_own") {
       out.push({
         label: isFull ? PRICING.options.design_submission_fullset.label : PRICING.options.design_submission_single.label,
@@ -189,30 +190,30 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       }
     }
 
+    // 名前入れの色課金（個別指定は“非黒ユニーク色”で判定）
     if (isSingle && designType === "name_print") {
       if (useUnifiedColor) {
-        // 一括指定：レインボーのみ¥800、それ以外は¥0
         if (unifiedColor === "rainbow") out.push({ label: PRICING.options.rainbow.label, amount: 800 });
       } else {
-        // 1文字ずつ：ユニーク色が1色なら（黒以外でも）¥0
-        // ユニークにレインボーが含まれる場合は一律¥800
-        const uniq = new Set(perCharColors);
+        const nonBlack = perCharColors.filter((c) => c && c !== "black") as ColorKey[];
+        const uniqNonBlack = Array.from(new Set(nonBlack));
+        const hasRainbow = uniqNonBlack.includes("rainbow" as ColorKey);
         let fee = 0;
-        if (uniq.has("rainbow")) {
-          fee = 800;
+        if (hasRainbow) {
+          fee = 800; // レインボーが含まれる場合は一律800
         } else {
-          const uniqCount = uniq.size;
-          if (uniqCount <= 1) {
-            fee = 0;
+          const k = uniqNonBlack.length; // 非黒のユニーク色数
+          if (k <= 1) {
+            fee = 0; // 非黒1色以内なら無料
           } else {
-            fee = Math.min(800, Math.max(0, uniqCount - 1) * 200);
+            fee = Math.min(800, (k - 1) * 200);
           }
         }
         if (fee > 0) out.push({ label: "色追加", amount: fee });
       }
     }
 
-    // 数量型OP
+    // 数量型OP（牌の数量とは独立）
     if (keyholderQty > 0 && flow !== "fullset") {
       out.push({
         label: `${PRICING.options.keyholder.label} × ${keyholderQty}`,
@@ -240,12 +241,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     kiribakoQty,
   ]);
 
-  const optionsUnit = extraDetails.reduce((s, d) => s + d.amount, 0);
+  // 行オプション合計（※牌の数量とは独立）
+  const optionTotalLine = extraDetails.reduce((s, d) => s + d.amount, 0);
 
-  // 現在選択中アイテムの計算（割引はここでは適用しない）
+  // 現在選択中アイテムの見積（割引はここでは未適用）
   const productSubtotal = productUnit * qty;
-  const optionsSubtotal = optionsUnit * qty;
-  const selectionMerchandise = productSubtotal + optionsSubtotal; // 割引前
+  const selectionMerchandise = productSubtotal + optionTotalLine; // ←オプションを×数量しない
   const shippingBySelection = selectionMerchandise >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
   const selectionTotal = selectionMerchandise + shippingBySelection;
 
@@ -270,7 +271,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       const fontLabel = fontKey === "ta-fuga-fude" ? "萬子風" : fontKey === "gothic" ? "ゴシック" : "明朝";
       const colorLabel = useUnifiedColor
         ? `色：${COLOR_LIST.find((c) => c.key === unifiedColor)?.label}`
-        : `色：${Array.from(new Set(perCharColors)).map((k) => COLOR_LIST.find((c) => c.key === k)?.label).join("・")}`;
+        : `色：${Array.from(new Set(perCharColors.filter((c) => c && c !== "black"))).map(
+            (k) => COLOR_LIST.find((c) => c.key === k)?.label
+          ).join("・") || "ブラック"}`;
       return [
         `文字：「${text || "（未入力）"}」`,
         `レイアウト：${layout === "vertical" ? "縦" : "横"}`,
@@ -326,7 +329,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       title: productTitle,
       qty,
       unit: productUnit,
-      optionUnit: optionsUnit,
+      optionTotal: optionTotalLine,        // ←オプションは行合計で保持
       note,
       extras: extraDetails.map((d) => ({ label: d.label, unit: d.amount })),
       designDetails: currentDesignDetails,
@@ -336,7 +339,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         (p) =>
           p.title === item.title &&
           p.unit === item.unit &&
-          p.optionUnit === item.optionUnit &&
+          p.optionTotal === item.optionTotal &&
           JSON.stringify(p.designDetails) === JSON.stringify(item.designDetails)
       );
       if (idx >= 0) {
@@ -351,20 +354,20 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   };
   const removeFromCart = (id: string) => setCartItems((prev) => prev.filter((x) => x.id !== id));
 
-  /** ===== カート全体の金額（累計割引対応） ===== */
-  const cartGross = cartItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
+  /** ===== カート全体の金額（累計割引対応／行合計の新式） ===== */
+  const cartGross = cartItems.reduce((s, it) => s + (it.qty * it.unit + it.optionTotal), 0);
 
-  // オリジナル単品の累計割引（5個10% / 10個15%）
+  // オリジナル単品の累計割引（5個10% / 10個15%）— 本体＋OPで集計
   const originalItems = cartItems.filter((it) => it.flow === "original_single");
   const originalQty = originalItems.reduce((s, it) => s + it.qty, 0);
-  const originalSubtotal = originalItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
+  const originalSubtotal = originalItems.reduce((s, it) => s + (it.qty * it.unit + it.optionTotal), 0);
   const originalRate = originalQty >= 10 ? 0.15 : originalQty >= 5 ? 0.1 : 0;
   const originalDiscount = Math.floor(originalSubtotal * originalRate);
 
-  // フルセットは累計5セットで20%
+  // フルセットは累計5セットで20%（本体＋OP）
   const fullsetItems = cartItems.filter((it) => it.flow === "fullset");
   const fullsetQty = fullsetItems.reduce((s, it) => s + it.qty, 0);
-  const fullsetSubtotal = fullsetItems.reduce((s, it) => s + it.qty * (it.unit + it.optionUnit), 0);
+  const fullsetSubtotal = fullsetItems.reduce((s, it) => s + (it.qty * it.unit + it.optionTotal), 0);
   const fullsetDiscount = fullsetQty >= 5 ? Math.floor(fullsetSubtotal * 0.2) : 0;
 
   const cartDiscount = originalDiscount + fullsetDiscount;
@@ -388,9 +391,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => {
-                setFlow(originalSub === "fullset" ? "fullset" : "original_single");
-              }}
+              onClick={() => setFlow(originalSub === "fullset" ? "fullset" : "original_single")}
               className={`text-left rounded-xl border p-4 transition hover:shadow ${
                 flow !== "regular" ? "border-black" : "border-neutral-200"
               }`}
@@ -420,22 +421,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           {flow !== "regular" && (
             <div className="mt-3">
               <div className="flex flex-wrap gap-2">
-                <Pill
-                  active={originalSub === "single"}
-                  onClick={() => {
-                    setOriginalSub("single");
-                    setFlow("original_single");
-                  }}
-                >
+                <Pill active={originalSub === "single"} onClick={() => { setOriginalSub("single"); setFlow("original_single"); }}>
                   1つから
                 </Pill>
-                <Pill
-                  active={originalSub === "fullset"}
-                  onClick={() => {
-                    setOriginalSub("fullset");
-                    setFlow("fullset");
-                  }}
-                >
+                <Pill active={originalSub === "fullset"} onClick={() => { setOriginalSub("fullset"); setFlow("fullset"); }}>
                   フルセット
                 </Pill>
               </div>
@@ -518,7 +507,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
                   </div>
 
-                  {/* 色指定（1段目：ブラック/レッド/ブルー、2段目：グリーン/ピンク/レインボー） */}
+                  {/* 色指定（1段目：黒/赤/青、2段目：緑/ピンク/レインボー） */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <label className="w-24">色指定</label>
@@ -800,7 +789,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 5. オプション（数量選択式） */}
+        {/* 5. オプション（牌数量と独立） */}
         <Card title="5. オプション">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-3">
@@ -852,7 +841,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 6. 見積（ボタンは固定高さ/横長） */}
+        {/* 6. 見積（オプションは×数量しない表示） */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -864,7 +853,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   </tr>
                   {extraDetails.map((d, i) => (
                     <tr key={i}>
-                      <td className="py-1 text-neutral-600">{d.label}（単価）</td>
+                      <td className="py-1 text-neutral-600">{d.label}</td>
                       <td className="py-1 text-right">¥{fmt(d.amount)}</td>
                     </tr>
                   ))}
@@ -874,7 +863,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   </tr>
                   <tr>
                     <td className="py-1 text-neutral-600">送料</td>
-                    <td className="py-1 text-right">{selectionMerchandise >= PRICING.shipping.freeOver ? "¥0（送料無料）" : `¥${fmt(PRICING.shipping.flat)}`}</td>
+                    <td className="py-1 text-right">
+                      {selectionMerchandise >= PRICING.shipping.freeOver ? "¥0（送料無料）" : `¥${fmt(PRICING.shipping.flat)}`}
+                    </td>
                   </tr>
                   <tr>
                     <td className="py-1 font-semibold">合計</td>
@@ -916,10 +907,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           id: ci.id,
           title: ci.title,
           qty: ci.qty,
-          // 行は割引前表示（誤認防止）
-          lineTotal: ci.qty * (ci.unit + ci.optionUnit),
+          lineTotal: ci.qty * ci.unit + ci.optionTotal, // ←行小計（割引前）
           details: ci.designDetails,
-          options: ci.extras?.map((e) => `${e.label}：¥${fmt(e.unit)}（単価）`) || [],
+          options: ci.extras?.map((e) => `${e.label}：¥${fmt(e.unit)}`) || [],
         }))}
         onOpenHeightChange={(h) => setBottomExtraSpace(h)}
         disabled={false}
