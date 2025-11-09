@@ -1,23 +1,24 @@
 import React from "react";
+import { motion } from "framer-motion";
 
-const Pill: React.FC<{
+type Props = {
   active?: boolean;
   onClick?: () => void;
+  className?: string;
   children: React.ReactNode;
-  title?: string;
-  type?: "button" | "submit" | "reset";
-  big?: boolean;
-}> = ({ active, onClick, children, title, type = "button", big }) => (
-  <button
-    type={type}
-    onClick={onClick}
-    title={title}
-    className={`${big ? "px-4 py-2" : "px-3 py-1"} rounded-xl text-sm border transition ${
-      active ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50"
-    }`}
-  >
-    {children}
-  </button>
-);
+};
+
+const Pill: React.FC<Props> = ({ active, onClick, className = "", children }) => {
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.98 }}
+      className={`pill ${active ? "pill-active" : ""} ${className}`}
+      onClick={onClick}
+    >
+      {children}
+    </motion.button>
+  );
+};
 
 export default Pill;
