@@ -17,7 +17,7 @@ const PRICING = {
     design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
     design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
     multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" }, // ← 800円に統一
+    rainbow: { priceIncl: 800, label: "レインボー" }, // 800円
     kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
     bring_own_color_unit: { priceIncl: 200, label: "持ち込み追加色（1色）" },
   },
@@ -40,35 +40,48 @@ const PRICING = {
   },
 } as const;
 
-const COLOR_LIST: { key: ColorKey; label: string; dot: string }[] = [
-  { key: "black", label: "ブラック", dot: "#0a0a0a" },
-  { key: "red", label: "レッド", dot: "#d10f1b" },
-  { key: "blue", label: "ブルー", dot: "#1e5ad7" },
-  { key: "green", label: "グリーン", dot: "#2e7d32" },
-  { key: "pink", label: "ピンク", dot: "#e24a86" },
+const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
+  { key: "black", label: "ブラック", css: "#0a0a0a" },
+  { key: "red", label: "レッド", css: "#d10f1b" },
+  { key: "blue", label: "ブルー", css: "#1e5ad7" },
+  { key: "green", label: "グリーン", css: "#2e7d32" },
+  { key: "pink", label: "ピンク", css: "#e24a86" },
   {
     key: "rainbow",
     label: "レインボー",
-    dot: "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
+    css: "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
   },
 ];
 
-const renderDot = (css: string) => {
+// 色バー（| の太め版）
+const ColorBarLabel: React.FC<{ css: string; label: string; active?: boolean; onClick?: () => void }> = ({
+  css,
+  label,
+  active,
+  onClick,
+}) => {
   const isGrad = css.startsWith("linear-gradient");
   return (
-    <span
-      aria-hidden
-      className="inline-block w-3.5 h-3.5 rounded-full mr-1 align-[-1px] border"
-      style={isGrad ? { backgroundImage: css } : { background: css }}
-    />
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2.5 py-1.5 rounded-lg border text-sm flex items-center gap-2 hover:bg-neutral-50 ${
+        active ? "ring-2 ring-black" : ""
+      }`}
+    >
+      <span
+        aria-hidden
+        className="inline-block w-2.5 h-5 rounded-sm"
+        style={isGrad ? { backgroundImage: css } : { background: css }}
+      />
+      <span>{label}</span>
+    </button>
   );
 };
 
-const BOTTOM_BAR_HEIGHT = 76;
+const BOTTOM_BAR_HEIGHT = 80;
 
-const Shop: React.FC<{
-  gotoCorporate: () => void;
-}> = ({ gotoCorporate }) => {
+const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const selectRef = useRef<HTMLDivElement | null>(null);
   const scrollToSelect = () => selectRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -80,6 +93,7 @@ const Shop: React.FC<{
   const [designType, setDesignType] = useState<"name_print" | "bring_own" | "commission">("name_print");
   const [text, setText] = useState("麻雀");
   const [layout, setLayout] = useState<Layout>("vertical");
+  const [fontKey, setFontKey] = useState<"ta-fuga-fude" | "gothic" | "mincho">("ta-fuga-fude");
   const [note, setNote] = useState("");
 
   // 色
@@ -87,7 +101,7 @@ const Shop: React.FC<{
   const [unifiedColor, setUnifiedColor] = useState<ColorKey>("black");
   const [perCharColors, setPerCharColors] = useState<ColorKey[]>(["black", "black", "black", "black"]);
 
-  // 数量はサイズ選択の直後に
+  // 数量（サイズ選択と分離）
   const [qty, setQty] = useState(1);
 
   // 持ち込み
@@ -98,14 +112,15 @@ const Shop: React.FC<{
   const [optKeyholder, setOptKeyholder] = useState(false);
   const [optKiribako4, setOptKiribako4] = useState(false);
 
-  // 通常牌のみ使うが保持
-  const [regularBack, setRegularBack] = useState<"yellow" | "blue">("yellow");
-  const [regularSuit, setRegularSuit] = useState<"honor" | "manzu" | "souzu" | "pinzu">("honor");
-  const [regularNumber, setRegularNumber] = useState(1);
-  const [regularHonor, setRegularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
+  // 通常牌（既存）
+  const [regularBack] = useState<"yellow" | "blue">("yellow");
+  const [regularSuit] = useState<"honor" | "manzu" | "souzu" | "pinzu">("honor");
+  const [regularNumber] = useState(1);
+  const [regularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
 
   // ミニカート
   const [cartOpen, setCartOpen] = useState(false);
+  const openCart = () => setCartOpen(true);
 
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
@@ -113,7 +128,7 @@ const Shop: React.FC<{
     return table.variants[v].priceIncl as number;
   }, [flow, variant]);
 
-  // 追加費用詳細
+  // 追加費用（明細化）
   const extraDetails: { label: string; amount: number }[] = useMemo(() => {
     const out: { label: string; amount: number }[] = [];
     const isFull = flow === "fullset";
@@ -163,21 +178,11 @@ const Shop: React.FC<{
     }
 
     return out;
-  }, [
-    flow,
-    variant,
-    designType,
-    bringOwnColorCount,
-    useUnifiedColor,
-    unifiedColor,
-    perCharColors,
-    optKeyholder,
-    optKiribako4,
-  ]);
+  }, [flow, variant, designType, bringOwnColorCount, useUnifiedColor, unifiedColor, perCharColors, optKeyholder, optKiribako4]);
 
   const optionsTotal = extraDetails.reduce((s, d) => s + d.amount, 0);
 
-  // 割引率
+  // 割引
   const discountRate = useMemo(() => {
     if (flow === "original_single") {
       if (qty >= 10) return 0.15;
@@ -203,13 +208,13 @@ const Shop: React.FC<{
     return `オリジナル麻雀牌（${variant === "standard" ? "28mm" : "30mm"}${flow === "fullset" ? "／フルセット" : ""}）`;
   }, [flow, variant]);
 
-  // ファイル選択
+  // ファイル選択（シンプル化）
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const fs = Array.from(e.target.files || []);
     const ok = fs.filter((f) => ALLOWED.includes((f.name.split(".").pop() || "").toLowerCase()));
     const mapped = ok.map((f) => {
-      const isImg = f.type.startsWith("image/") && f.type !== "image/heic";
+      const isImg = f.type.startsWith("image/") && f.type !== "image/heic");
       return {
         id: `${f.name}_${f.size}_${Math.random().toString(36).slice(2)}`,
         name: f.name,
@@ -269,13 +274,12 @@ const Shop: React.FC<{
         {/* 2. デザイン or 通常牌選択 */}
         {flow === "regular" ? (
           <Card title="2. 背面色と牌の選択（通常牌）">
-            {/* 既存の通常牌UI（省略可） */}
             <RegularTilePreview />
           </Card>
         ) : (
           <Card title="2. デザイン">
             <div className="flex flex-wrap gap-2">
-              {/* フルセットでは「名前入れ」を非表示 */}
+              {/* フルセットでは「名前入れ」非表示 */}
               {flow !== "fullset" && (
                 <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
                   名前入れ
@@ -313,6 +317,20 @@ const Shop: React.FC<{
                     </Pill>
                   </div>
 
+                  {/* フォント選択 */}
+                  <div className="flex items-center gap-2">
+                    <label className="w-24">フォント</label>
+                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>
+                      萬子風
+                    </Pill>
+                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>
+                      ゴシック
+                    </Pill>
+                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>
+                      明朝
+                    </Pill>
+                  </div>
+
                   {/* 色指定：統一or個別 */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -328,10 +346,13 @@ const Shop: React.FC<{
                     {useUnifiedColor ? (
                       <div className="flex flex-wrap gap-2 pl-24">
                         {COLOR_LIST.map((c) => (
-                          <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
-                            {renderDot(c.dot)}
-                            {c.label}
-                          </Pill>
+                          <ColorBarLabel
+                            key={c.key}
+                            css={c.css}
+                            label={c.label}
+                            active={unifiedColor === c.key}
+                            onClick={() => setUnifiedColor(c.key)}
+                          />
                         ))}
                       </div>
                     ) : (
@@ -341,18 +362,17 @@ const Shop: React.FC<{
                             <div className="w-6 text-center text-sm">{ch}</div>
                             <div className="flex flex-wrap gap-2">
                               {COLOR_LIST.map((c) => (
-                                <Pill
+                                <ColorBarLabel
                                   key={c.key}
+                                  css={c.css}
+                                  label={c.label}
                                   active={(perCharColors[idx] || "black") === c.key}
                                   onClick={() => {
                                     const arr = perCharColors.slice();
                                     arr[idx] = c.key;
                                     setPerCharColors(arr);
                                   }}
-                                >
-                                  {renderDot(c.dot)}
-                                  {c.label}
-                                </Pill>
+                                />
                               ))}
                             </div>
                           </div>
@@ -361,13 +381,13 @@ const Shop: React.FC<{
                     )}
                   </div>
 
-                  {/* 備考 */}
+                  {/* 備考（大きめ） */}
                   <div className="flex items-start gap-2">
                     <label className="w-24 mt-2">備考</label>
                     <textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="border rounded px-3 py-2 w-full h-24"
+                      className="border rounded px-3 py-2 w-full h-56"
                       placeholder="ご希望・注意点など（任意）"
                     />
                   </div>
@@ -379,6 +399,7 @@ const Shop: React.FC<{
                   useUnifiedColor={useUnifiedColor}
                   unifiedColor={unifiedColor}
                   perCharColors={perCharColors}
+                  fontKey={fontKey}
                 />
               </div>
             )}
@@ -392,7 +413,7 @@ const Shop: React.FC<{
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
-                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-black text-white cursor-pointer shadow">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer bg-white hover:bg-neutral-50">
                       <span>ファイルを選択</span>
                       <input
                         type="file"
@@ -455,7 +476,7 @@ const Shop: React.FC<{
           </Card>
         )}
 
-        {/* 3. サイズ選択（数量をここへ） */}
+        {/* 3. サイズ選択 */}
         {(flow === "original_single" || flow === "fullset") && (
           <Card title="3. サイズ選択">
             <div className="flex flex-wrap items-center gap-2">
@@ -465,20 +486,6 @@ const Shop: React.FC<{
               <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>
                 30mm
               </Pill>
-              <div className="ml-4 flex items-center gap-2">
-                <label className="text-sm">数量</label>
-                <input
-                  type="number"
-                  value={qty}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
-                  }}
-                  className="border rounded px-3 py-2 w-24"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                />
-              </div>
             </div>
 
             {/* 対応機種（選択サイズで出し分け） */}
@@ -486,47 +493,61 @@ const Shop: React.FC<{
               <summary className="cursor-pointer select-none text-sm font-medium">対応機種</summary>
               <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
                 {variant === "standard" ? (
-                  <>
-                    <div>
-                      <div className="font-semibold mb-1">対応機種（28mm）</div>
-                      <ul className="list-disc ml-5 space-y-0.5">
-                        <li>AMOS REXX</li>
-                        <li>AMOS REXX2</li>
-                        <li>AMOSアルティマ</li>
-                        <li>AMOSセヴィア</li>
-                        <li>AMOSセヴィアHD</li>
-                        <li>AMOSヴィエラ</li>
-                        <li>AMOSシャルム</li>
-                        <li>AMOSジョイ</li>
-                        <li>AMOSキューブ</li>
-                        <li>AMOSキューブHD</li>
-                        <li>ニンジャB4 HD</li>
-                        <li>ニンジャB4 STANDARD</li>
-                      </ul>
-                      <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
-                    </div>
-                  </>
+                  <div>
+                    <div className="font-semibold mb-1">対応機種（28mm）</div>
+                    <ul className="list-disc ml-5 space-y-0.5">
+                      <li>AMOS REXX</li>
+                      <li>AMOS REXX2</li>
+                      <li>AMOSアルティマ</li>
+                      <li>AMOSセヴィア</li>
+                      <li>AMOSセヴィアHD</li>
+                      <li>AMOSヴィエラ</li>
+                      <li>AMOSシャルム</li>
+                      <li>AMOSジョイ</li>
+                      <li>AMOSキューブ</li>
+                      <li>AMOSキューブHD</li>
+                      <li>ニンジャB4 HD</li>
+                      <li>ニンジャB4 STANDARD</li>
+                    </ul>
+                    <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
+                  </div>
                 ) : (
-                  <>
-                    <div>
-                      <div className="font-semibold mb-1">対応機種（30mm）</div>
-                      <ul className="list-disc ml-5 space-y-0.5">
-                        <li>AMOS JP2</li>
-                        <li>AMOS JPEX</li>
-                        <li>AMOS JPCOLOR</li>
-                        <li>AMOS JPDG</li>
-                      </ul>
-                      <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
-                    </div>
-                  </>
+                  <div>
+                    <div className="font-semibold mb-1">対応機種（30mm）</div>
+                    <ul className="list-disc ml-5 space-y-0.5">
+                      <li>AMOS JP2</li>
+                      <li>AMOS JPEX</li>
+                      <li>AMOS JPCOLOR</li>
+                      <li>AMOS JPDG</li>
+                    </ul>
+                    <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
+                  </div>
                 )}
               </div>
             </details>
           </Card>
         )}
 
-        {/* 4. オプション（見積と分離して、押しやすいUI） */}
-        <Card title="4. オプション">
+        {/* 4. 数量（サイズと分離） */}
+        <Card title="4. 数量">
+          <div className="flex items-center gap-2">
+            <label className="text-sm">数量</label>
+            <input
+              type="number"
+              value={qty}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+              }}
+              className="border rounded px-3 py-2 w-24"
+              inputMode="numeric"
+              pattern="[0-9]*"
+            />
+          </div>
+        </Card>
+
+        {/* 5. オプション */}
+        <Card title="5. オプション">
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -552,8 +573,8 @@ const Shop: React.FC<{
           </div>
         </Card>
 
-        {/* 5. 見積もり（明細・割引反映） */}
-        <Card title="5. 見積">
+        {/* 6. 見積もり（明細・割引反映・カートに追加） */}
+        <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <table className="w-full text-sm">
@@ -600,56 +621,41 @@ const Shop: React.FC<{
               </table>
             </div>
 
-            {/* ミニカート トリガー */}
-            <div className="flex items-end justify-end">
-              <button
-                type="button"
-                onClick={() => setCartOpen(true)}
-                className="px-5 py-3 rounded-2xl bg-black text-white shadow"
-              >
-                カートを見る
+            {/* アクション */}
+            <div className="flex flex-col items-end gap-2">
+              <button type="button" className="px-5 py-2 rounded-xl border" onClick={openCart}>
+                カートに追加
+              </button>
+              <button type="button" className="px-5 py-2 rounded-xl bg-black text-white" onClick={openCart}>
+                購入手続きへ
               </button>
             </div>
           </div>
         </Card>
       </section>
 
-      {/* ボトムバー（中央寄せ） */}
+      {/* ボトムバー（中央寄せ & カートに追加） */}
       <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
-        <div className="max-w-3xl mx-auto h-[76px] px-4 flex items-center justify-between gap-3">
+        <div className="max-w-3xl mx-auto h-[80px] px-4 flex items-center justify-between gap-3">
           <div className="text-sm">
             <div className="font-semibold">{productTitle}</div>
-            <div className="text-neutral-600">
-              合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）
-            </div>
+            <div className="text-neutral-600">合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）</div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl border"
-              onClick={() => setCartOpen(true)}
-            >
-              ミニカート
+            <button type="button" className="px-4 py-2 rounded-xl border" onClick={openCart}>
+              カートに追加
             </button>
-            <button
-              type="button"
-              className="px-5 py-2 rounded-xl bg-black text-white"
-              onClick={() => setCartOpen(true)}
-            >
+            <button type="button" className="px-5 py-2 rounded-xl bg-black text-white" onClick={openCart}>
               購入手続きへ
             </button>
           </div>
         </div>
       </div>
 
-      {/* ミニカート ドロワー */}
+      {/* ミニカート */}
       {cartOpen && (
         <div className="fixed inset-0 z-40">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setCartOpen(false)}
-            aria-hidden
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCartOpen(false)} aria-hidden />
           <aside className="absolute right-0 top-0 bottom-0 w-[360px] max-w-[90vw] bg-white shadow-2xl p-4 overflow-auto">
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold">カート</div>
