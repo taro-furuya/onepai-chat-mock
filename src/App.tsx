@@ -187,7 +187,7 @@ export default function App() {
   useEffect(() => {
     if (flow === "regular") {
       if (variant !== "default") setVariant("default");
-      if (designType !== "name_print") setDesignType("name_print"); // 通常牌にデザインタイプは効かないが崩れ防止
+      if (designType !== "name_print") setDesignType("name_print"); // 通常牌は名前入れUI以外無効
     } else {
       if (variant === "default") setVariant("standard");
       if (flow === "fullset" && designType === "name_print") setDesignType("bring_own");
@@ -200,9 +200,8 @@ export default function App() {
     f === "regular" ? "default" : v === "default" ? "standard" : v;
 
   const baseUnit = useMemo(() => {
-    const f = flow;
     const v = effectiveVariant(flow, variant);
-    const obj: any = PRICING.products[f as keyof typeof PRICING.products];
+    const obj: any = PRICING.products[flow as keyof typeof PRICING.products];
     return obj?.variants?.[v]?.priceIncl || 0;
   }, [flow, variant]);
 
@@ -292,7 +291,11 @@ export default function App() {
     { key: "blue", label: "ブルー", dot: "#1e5ad7" },
     { key: "green", label: "グリーン", dot: "#2e7d32" },
     { key: "pink", label: "ピンク", dot: "#e24a86" },
-    { key: "rainbow", label: "レインボー", dot: "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)" },
+    {
+      key: "rainbow",
+      label: "レインボー",
+      dot: "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
+    },
   ];
 
   const renderColorDot = (css: string) => {
@@ -429,14 +432,22 @@ export default function App() {
             <div className="mt-3 text-xs text-neutral-600 space-y-1">
               {flow === "original_single" && (
                 <>
-                  <div>発送目安：<b>約2〜3週間</b></div>
-                  <div>割引：<b>5個で10%</b> / <b>10個で15%</b></div>
+                  <div>
+                    発送目安：<b>約2〜3週間</b>
+                  </div>
+                  <div>
+                    割引：<b>5個で10%</b> / <b>10個で15%</b>
+                  </div>
                 </>
               )}
               {flow === "fullset" && (
                 <>
-                  <div>発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）</div>
-                  <div>割引：<b>5セットで20%</b></div>
+                  <div>
+                    発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）
+                  </div>
+                  <div>
+                    割引：<b>5セットで20%</b>
+                  </div>
                 </>
               )}
             </div>
@@ -513,7 +524,7 @@ export default function App() {
               {/* 名前入れフォーム */}
               {designType === "name_print" && (
                 <div className="grid md:grid-cols-2 gap-4 items-start mt-4">
-                  {/* 入力 */}
+                  {/* 入力カラム */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <label className="w-24">文字</label>
@@ -591,14 +602,15 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                  
-                  {/* プレビューカード内 */ }
-                  <NameTilePreview
-                    text={text || "麻雀"}
-                    layout={layout}
-                    useUnifiedColor={useUnifiedColor}
-                    unifiedColor={unifiedColor}
-                    perCharColors={perCharColors}
+
+                  {/* プレビューカラム */}
+                  <div>
+                    <NameTilePreview
+                      text={text || "麻雀"}
+                      layout={layout}
+                      useUnifiedColor={useUnifiedColor}
+                      unifiedColor={unifiedColor}
+                      perCharColors={perCharColors}
                     />
                     <div className="text-xs text-neutral-500 mt-2">
                       ※ 全角4文字を超えると自動で2段に分割します（縦：右→左、横：上→下）。
@@ -806,9 +818,7 @@ export default function App() {
                     </tr>
                     <tr>
                       <td className="py-1 font-semibold">小計</td>
-                      <td className="py-1 text-right font-semibold">
-                        ¥{fmt(merchandiseSubtotal)}
-                      </td>
+                      <td className="py-1 text-right font-semibold">¥{fmt(merchandiseSubtotal)}</td>
                     </tr>
                     <tr>
                       <td className="py-1 text-neutral-600">送料</td>
