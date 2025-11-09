@@ -1,6 +1,10 @@
 import React from "react";
-import { createRoot } from "react-dom/client";
+import ReactDOM from "react-dom/client";
 import App from "./App";
+import "./styles.css"; // 👈 デザイン再現CSSを読み込み
 
-const el = document.getElementById("root")!;
-createRoot(el).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
