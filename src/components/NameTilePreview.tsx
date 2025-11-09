@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 
 export type Layout = "vertical" | "horizontal";
 export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
@@ -9,10 +9,7 @@ const PALETTE: { key: ColorKey; css: string }[] = [
   { key: "blue", css: "#1f57c3" },
   { key: "green", css: "#0d7a3a" },
   { key: "pink", css: "#e75480" },
-  {
-    key: "rainbow",
-    css: "linear-gradient(180deg,#d10f1b,#ff7a00,#ffd400,#1bb34a,#1f57c3,#7a2bc2)",
-  },
+  { key: "rainbow", css: "linear-gradient(180deg,#d10f1b,#ff7a00,#ffd400,#1bb34a,#1f57c3,#7a2bc2)" },
 ];
 
 const cssOf = (k: ColorKey) => PALETTE.find((p) => p.key === k)!.css;
@@ -25,12 +22,7 @@ function splitTwoLines(chars: string[]) {
 
 const colorStyle = (k: ColorKey): React.CSSProperties =>
   k === "rainbow"
-    ? {
-        background: cssOf(k),
-        WebkitBackgroundClip: "text",
-        backgroundClip: "text",
-        color: "transparent",
-      }
+    ? { background: cssOf(k), WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }
     : { color: cssOf(k) };
 
 const FONT_STACKS: Record<string, string> = {
@@ -47,14 +39,7 @@ export default function NameTilePreview(props: {
   perCharColors: ColorKey[];
   fontKey?: "ta-fuga-fude" | "gothic" | "mincho";
 }) {
-  const {
-    text,
-    layout,
-    useUnifiedColor,
-    unifiedColor,
-    perCharColors,
-    fontKey = "ta-fuga-fude",
-  } = props;
+  const { text, layout, useUnifiedColor, unifiedColor, perCharColors, fontKey = "ta-fuga-fude" } = props;
 
   // Typekit
   useEffect(() => {
@@ -97,8 +82,8 @@ export default function NameTilePreview(props: {
 
   const maxLenInGroup = groups.reduce((m, g) => Math.max(m, g.length), 0) || 1;
   const columnCount = groups.length;
-
   const singleMax = Math.floor(shortSide * 0.85);
+
   let fontSize: number;
   if (chars.length === 1) {
     fontSize = singleMax;
@@ -113,7 +98,7 @@ export default function NameTilePreview(props: {
   }
 
   const colors = useUnifiedColor
-    ? new Array(Math.max(1, chars.length)).fill(unifiedColor) as ColorKey[]
+    ? (new Array(Math.max(1, chars.length)).fill(unifiedColor) as ColorKey[])
     : (() => {
         const need = Math.max(1, chars.length);
         const out = perCharColors.slice();
@@ -154,10 +139,7 @@ export default function NameTilePreview(props: {
                 }}
               >
                 {col.map((ch, i) => (
-                  <span
-                    key={i}
-                    style={colorStyle(colorAt(ci * (groups[0].length || 0) + i))}
-                  >
+                  <span key={i} style={colorStyle(colorAt(ci * (groups[0].length || 0) + i))}>
                     {ch}
                   </span>
                 ))}
@@ -165,15 +147,7 @@ export default function NameTilePreview(props: {
             ))}
           </div>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              width: "92%",
-              textAlign: "center",
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "92%", textAlign: "center" }}>
             {groups.map((row, ri) => (
               <div
                 key={ri}
@@ -188,10 +162,7 @@ export default function NameTilePreview(props: {
                 }}
               >
                 {row.map((ch, i) => (
-                  <span
-                    key={i}
-                    style={colorStyle(colorAt(ri * (groups[0].length || 0) + i))}
-                  >
+                  <span key={i} style={colorStyle(colorAt(ri * (groups[0].length || 0) + i))}>
                     {ch}
                   </span>
                 ))}
