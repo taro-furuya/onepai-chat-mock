@@ -4,8 +4,6 @@ import Pill from "../components/Pill";
 import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview";
 import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
-
-/** 追加: アコーディオン型ボトムバー */
 import BottomBar from "../components/BottomBar";
 
 /** ----------------- 型・定数 ----------------- */
@@ -20,6 +18,7 @@ type CartItem = {
   discount: number;
   note?: string;
   extras: { label: string; unit: number }[];
+  designDetails?: string[];
 };
 
 const fmt = (n: number) => new Intl.NumberFormat("ja-JP").format(n);
@@ -69,15 +68,15 @@ const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   },
 ];
 
-const renderColorBar = (css: string) => {
+const renderColorSwatch = (css: string) => {
   const isGrad = css.startsWith("linear-gradient");
   return (
     <span
       aria-hidden
       className="inline-block mr-2 align-[-1px] rounded-sm"
       style={{
-        width: 10,
-        height: 14,
+        width: 16,
+        height: 16,
         background: isGrad ? undefined : css,
         backgroundImage: isGrad ? css : undefined,
         border: "1px solid #e5e7eb",
@@ -131,13 +130,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [bringOwnColorCount, setBringOwnColorCount] = useState<number>(1);
   const [files, setFiles] = useState<{ id: string; src: string; name: string; type: "image" | "file" }[]>([]);
 
-  // オプション
-  const [optKeyholder, setOptKeyholder] = useState(false);
-  const [optKiribako4, setOptKiribako4] = useState(false);
+  // オプション（数量入力型に変更）
+  const [keyholderQty, setKeyholderQty] = useState<number>(0);
+  const [kiribakoQty, setKiribakoQty] = useState<number>(0); // 4枚用・28mm専用
 
-  // ミニカート（簡易）表示用の配列
+  // カート＆トースト
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+
+  // ボトムバーの展開高さに応じた余白
+  const [bottomExtraSpace, setBottomExtraSpace] = useState<number>(BOTTOM_BAR_HEIGHT + 16);
 
   /** フルセットでは「名前入れ」を非表示 → 自動で切替 */
   useEffect(() => {
@@ -194,13 +196,21 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       }
     }
 
-    if (!(flow === "fullset") && optKiribako4) {
-      const ok = (flow === "original_single" && variant === "standard") || flow === "regular";
-      if (ok) out.push({ label: PRICING.options.kiribako_4.label, amount: PRICING.options.kiribako_4.priceIncl });
+    // ここから数量型オプション
+    if (keyholderQty > 0 && flow !== "fullset") {
+      out.push({
+        label: `${PRICING.options.keyholder.label} × ${keyholderQty}`,
+        amount: PRICING.options.keyholder.priceIncl * keyholderQty,
+      });
     }
-    if (!(flow === "fullset") && optKeyholder) {
-      out.push({ label: PRICING.options.keyholder.label, amount: PRICING.options.keyholder.priceIncl });
+    const kiribakoEnabled = (flow === "original_single" && variant === "standard") || flow === "regular";
+    if (kiribakoQty > 0 && kiribakoEnabled) {
+      out.push({
+        label: `${PRICING.options.kiribako_4.label} × ${kiribakoQty}`,
+        amount: PRICING.options.kiribako_4.priceIncl * kiribakoQty,
+      });
     }
+
     return out;
   }, [
     flow,
@@ -210,8 +220,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     useUnifiedColor,
     unifiedColor,
     perCharColors,
-    optKeyholder,
-    optKiribako4,
+    keyholderQty,
+    kiribakoQty,
   ]);
 
   const optionsUnit = extraDetails.reduce((s, d) => s + d.amount, 0);
@@ -224,7 +234,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   }, [flow, qty]);
 
   const productSubtotal = productUnit * qty;
-  const optionsSubtotal = optionsUnit * qty;
+  const optionsSubtotal = optionsUnit * qty; // オプションも数量分に連動
   const discountAmount = Math.floor((productSubtotal + optionsSubtotal) * discountRate);
   const merchandiseSubtotal = productSubtotal + optionsSubtotal - discountAmount;
   const shipping = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
@@ -239,6 +249,41 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
     return `オリジナル麻雀牌（${variant === "standard" ? "28mm" : "30mm"}${flow === "fullset" ? "／フルセット" : ""}）`;
   }, [flow, variant, regularBack, regularSuit, regularNumber, regularHonor]);
+
+  /** デザイン説明（ミニカート用） */
+  const currentDesignDetails: string[] = useMemo(() => {
+    if (flow === "regular") {
+      const tile = regularSuit === "honor" ? regularHonor : `${regularNumber}${suitLabel(regularSuit)}`;
+      const back = regularBack === "yellow" ? "背面：黄色" : "背面：青色";
+      return [back, `牌：${tile}`];
+    }
+    if (designType === "name_print") {
+      const fontLabel = fontKey === "ta-fuga-fude" ? "萬子風" : fontKey === "gothic" ? "ゴシック" : "明朝";
+      const colorLabel = useUnifiedColor
+        ? `色：${COLOR_LIST.find((c) => c.key === unifiedColor)?.label}`
+        : `色：${Array.from(new Set(perCharColors)).map((k) => COLOR_LIST.find((c) => c.key === k)?.label).join("・")}`;
+      return [`文字：「${text || "（未入力）"}」`, `レイアウト：${layout === "vertical" ? "縦" : "横"}`, `フォント：${fontLabel}`, colorLabel];
+    }
+    if (designType === "bring_own") {
+      return [`ファイル：${files.length}件`, `色数：${Math.max(1, bringOwnColorCount)}色`];
+    }
+    return ["デザイン依頼"];
+  }, [
+    flow,
+    designType,
+    text,
+    layout,
+    fontKey,
+    useUnifiedColor,
+    unifiedColor,
+    perCharColors,
+    files.length,
+    bringOwnColorCount,
+    regularBack,
+    regularSuit,
+    regularNumber,
+    regularHonor,
+  ]);
 
   /** ファイル選択（1ボタン化） */
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -260,7 +305,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
 
   /** カート */
-  const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit);
+  const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit) - ci.discount; // 行割引分を控除
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
@@ -271,11 +316,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       discount: discountAmount,
       note,
       extras: extraDetails.map((d) => ({ label: d.label, unit: d.amount })),
+      designDetails: currentDesignDetails,
     };
     setCartItems((prev) => {
-      // 同一商品（タイトル・単価一致）はマージ（任意ロジック）
       const idx = prev.findIndex(
-        (p) => p.title === item.title && p.unit === item.unit && p.optionUnit === item.optionUnit
+        (p) =>
+          p.title === item.title &&
+          p.unit === item.unit &&
+          p.optionUnit === item.optionUnit &&
+          JSON.stringify(p.designDetails) === JSON.stringify(item.designDetails)
       );
       if (idx >= 0) {
         const copy = prev.slice();
@@ -294,7 +343,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   /** ----------------- UI ----------------- */
   return (
-    <div style={{ paddingBottom: BOTTOM_BAR_HEIGHT + 16 }}>
+    <div style={{ paddingBottom: bottomExtraSpace }}>
       <Hero onPrimary={scrollToSelect} onSecondary={gotoCorporate} />
 
       <section style={containerStyle} className="mt-6 space-y-6">
@@ -380,7 +429,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           )}
         </Card>
 
-        {/* 2. 分岐 */}
+        {/* 2. デザイン */}
         {flow === "regular" ? (
           <Card title="2. 牌の選択（通常牌）">
             <div className="grid md:grid-cols-2 gap-6 items-start">
@@ -507,11 +556,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     </div>
 
                     {useUnifiedColor ? (
-                      <div className="pl-24 flex flex-wrap gap-2">
+                      <div className="pl-24 flex flex-wrap gap-2 items-center">
+                        {/* 太めの縦線 */}
+                        <span className="h-6 border-l-2 mr-2" />
                         {COLOR_LIST.map((c) => (
                           <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
-                            {renderColorBar(c.css)}
-                            {c.label}
+                            {renderColorSwatch(c.css)}
+                            <span className="whitespace-nowrap">{c.label}</span>
                           </Pill>
                         ))}
                       </div>
@@ -520,6 +571,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         {splitChars(text || "麻雀").map((ch, idx) => (
                           <div key={idx} className="flex items-center gap-2">
                             <div className="w-6 text-center text-sm">{ch}</div>
+                            <span className="h-6 border-l-2 mr-2" />
                             <div className="flex flex-wrap gap-2">
                               {COLOR_LIST.map((c) => (
                                 <Pill
@@ -531,8 +583,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                                     setPerCharColors(arr);
                                   }}
                                 >
-                                  {renderColorBar(c.css)}
-                                  {c.label}
+                                  {renderColorSwatch(c.css)}
+                                  <span className="whitespace-nowrap">{c.label}</span>
                                 </Pill>
                               ))}
                             </div>
@@ -542,13 +594,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     )}
                   </div>
 
-                  {/* 備考 */}
+                  {/* 備考（大きく） */}
                   <div className="flex gap-2 items-start">
                     <label className="w-24 mt-2">備考</label>
                     <textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="border rounded-xl px-3 py-2 w-full h-64"
+                      className="border rounded-xl px-3 py-2 w-full h-96"
                       placeholder="ご希望・注意点など（任意）"
                     />
                   </div>
@@ -571,14 +623,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* デザイン持ち込み */}
             {designType === "bring_own" && (
               <div className="mt-4 space-y-3">
-                <div className="text-xs text-neutral-600">
-                  デザイン持ち込み料（{flow === "fullset" ? "¥5,000" : "¥500"}）は自動で計算されます。
-                </div>
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
-
-                    {/* 1ボタン化：ネイティブの重複ボタンを排除 */}
+                    {/* 右側ボタンのみ表示 */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -635,14 +683,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         inputMode="numeric"
                         pattern="[0-9]*"
                       />
-                      <span className="text-xs text-neutral-600">※ 追加1色ごとに+¥200</span>
                     </div>
                     <div className="mt-3">
                       <label className="text-sm block mb-1">備考</label>
                       <textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        className="border rounded-xl px-3 py-2 w-full h-64"
+                        className="border rounded-xl px-3 py-2 w-full h-96"
                         placeholder="ご希望・注意点など（任意）"
                       />
                     </div>
@@ -653,7 +700,18 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
             {/* デザイン依頼 */}
             {designType === "commission" && (
-              <p className="text-xs text-neutral-600 mt-4">※デザイン料は別途お見積りとなります。</p>
+              <div className="mt-3">
+                <div className="text-xs text-neutral-600">※デザイン料は別途お見積りとなります。</div>
+                <div className="flex gap-2 items-start mt-2">
+                  <label className="w-24 mt-2 text-xs md:text-sm">備考</label>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="border rounded-xl px-3 py-2 w-full h-96"
+                    placeholder="ご希望・注意点など（任意）"
+                  />
+                </div>
+              </div>
             )}
           </Card>
         )}
@@ -733,63 +791,57 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </div>
         </Card>
 
-        {/* 5. オプション */}
+        {/* 5. オプション（数量選択式） */}
         <Card title="5. オプション">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-3">
-              {flow !== "fullset" && (
-                <label className="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={optKeyholder}
-                    onChange={(e) => setOptKeyholder(e.target.checked)}
-                  />
-                  <span>キーホルダー（+¥{fmt(PRICING.options.keyholder.priceIncl)}）</span>
-                </label>
-              )}
+              <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
+                <div className="min-w-[7.5rem]">キーホルダー</div>
+                <input
+                  type="number"
+                  value={keyholderQty}
+                  onChange={(e) => {
+                    const v = Math.max(0, Math.floor(Number(e.target.value)));
+                    setKeyholderQty(Number.isFinite(v) ? v : 0);
+                  }}
+                  className="border rounded px-3 py-2 w-24"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                />
+                <span className="text-xs text-neutral-600">（1個あたり ¥{fmt(PRICING.options.keyholder.priceIncl)}）</span>
+              </div>
 
               {((flow === "original_single" && variant === "standard") || flow === "regular") && (
-                <label className="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer">
+                <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
+                  <div className="min-w-[7.5rem]">桐箱（4枚用）</div>
                   <input
-                    type="checkbox"
-                    checked={optKiribako4}
-                    onChange={(e) => setOptKiribako4(e.target.checked)}
+                    type="number"
+                    value={kiribakoQty}
+                    onChange={(e) => {
+                      const v = Math.max(0, Math.floor(Number(e.target.value)));
+                      setKiribakoQty(Number.isFinite(v) ? v : 0);
+                    }}
+                    className="border rounded px-3 py-2 w-24"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
-                  <span>桐箱（4枚用 / +¥{fmt(PRICING.options.kiribako_4.priceIncl)}）</span>
-                </label>
+                  <span className="text-xs text-neutral-600">
+                    （1個あたり ¥{fmt(PRICING.options.kiribako_4.priceIncl)}）※4枚用／28mm専用
+                  </span>
+                </div>
               )}
             </div>
 
-            {/* オプション計算に関わる注記だけを表示（明細は見積側） */}
+            {/* 注記は数量式の注意のみ。追加色などは非表示 */}
             <div className="text-xs text-neutral-600">
               <ul className="list-disc ml-5 space-y-1">
-                {designType === "bring_own" && (
-                  <>
-                    <li>持ち込みデザイン料：{flow === "fullset" ? "¥5,000" : "¥500"}</li>
-                    {Math.max(1, bringOwnColorCount) > 1 && (
-                      <li>
-                        追加色 {Math.max(1, bringOwnColorCount) - 1}色：+¥
-                        {fmt(PRICING.options.bring_own_color_unit.priceIncl * (Math.max(1, bringOwnColorCount) - 1))}
-                      </li>
-                    )}
-                  </>
-                )}
-                {designType === "name_print" &&
-                  (useUnifiedColor ? (
-                    unifiedColor === "rainbow" ? <li>レインボー：+¥{fmt(PRICING.options.rainbow.priceIncl)}</li> : null
-                  ) : (
-                    (() => {
-                      const uniq = Array.from(new Set(perCharColors));
-                      const add = Math.max(0, uniq.length - 1);
-                      return add > 0 ? <li>追加色 {add}色：+¥{fmt(PRICING.options.multi_color.priceIncl * add)}</li> : null;
-                    })()
-                  ))}
+                <li>桐箱は4枚用です。28mm専用となります。</li>
               </ul>
             </div>
           </div>
         </Card>
 
-        {/* 6. 見積 */}
+        {/* 6. 見積（要件に沿って行を整理） */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -799,20 +851,20 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <td className="py-1 text-neutral-600">商品（単価）</td>
                     <td className="py-1 text-right">¥{fmt(productUnit)}</td>
                   </tr>
+
+                  {/* オプション（単価） */}
                   {extraDetails.map((d, i) => (
                     <tr key={i}>
                       <td className="py-1 text-neutral-600">{d.label}（単価）</td>
                       <td className="py-1 text-right">¥{fmt(d.amount)}</td>
                     </tr>
                   ))}
+
                   <tr>
                     <td className="py-1 text-neutral-600">数量</td>
                     <td className="py-1 text-right">× {qty}</td>
                   </tr>
-                  <tr>
-                    <td className="py-1">小計（商品+オプション）</td>
-                    <td className="py-1 text-right">¥{fmt(productSubtotal + optionsSubtotal)}</td>
-                  </tr>
+
                   {discountRate > 0 && (
                     <tr>
                       <td className="py-1 text-emerald-700 font-semibold">
@@ -821,59 +873,57 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                       <td className="py-1 text-right text-emerald-700 font-semibold">-¥{fmt(discountAmount)}</td>
                     </tr>
                   )}
-                  <tr>
-                    <td className="py-1 font-semibold">小計</td>
-                    <td className="py-1 text-right font-semibold">¥{fmt(merchandiseSubtotal)}</td>
-                  </tr>
+
                   <tr>
                     <td className="py-1 text-neutral-600">送料</td>
                     <td className="py-1 text-right">{shipping === 0 ? "¥0（送料無料）" : `¥${fmt(shipping)}`}</td>
                   </tr>
+
                   <tr>
                     <td className="py-1 font-semibold">合計</td>
                     <td className="py-1 text-right font-semibold">¥{fmt(total)}</td>
                   </tr>
                 </tbody>
               </table>
-
-              <p className="text-xs text-neutral-500 mt-3">
-                プレビューはイメージです。色味などは実際と異なる可能性がございます。
-              </p>
             </div>
 
-            {/* ボタンは小型・シンプルに */}
+            {/* ボタン：横長・小さめ */}
             <div className="flex items-end justify-end gap-2">
               <button
                 type="button"
                 onClick={addToCart}
-                className="px-4 py-2 rounded-xl border bg-white text-sm hover:bg-neutral-50"
+                className="px-6 py-2 rounded-xl border bg-white text-sm hover:bg-neutral-50"
               >
                 カートに追加
               </button>
               <button
                 type="button"
-                onClick={() => alert("カートは下のバーから確認できます")}
-                className="px-4 py-2 rounded-xl bg-black text-white text-sm"
+                onClick={() => alert('チェックアウトはモックです')}
+                className="px-6 py-2 rounded-xl bg-black text-white text-sm"
               >
-                カートを見る
+                購入手続きへ
               </button>
             </div>
           </div>
         </Card>
       </section>
 
-      {/* ===== アコーディオン式ボトムバー（ミニカートボタンは無し） ===== */}
+      {/* ===== アコーディオン式ボトムバー（中央・重なり回避の高さ通知） ===== */}
       <BottomBar
         subtotal={merchandiseSubtotal}
         shipping={shipping}
+        discount={discountAmount}
         total={total}
         onAddToCart={addToCart}
         items={cartItems.map((ci) => ({
           id: ci.id,
           title: ci.title,
           qty: ci.qty,
-          lineTotal: ci.qty * (ci.unit + ci.optionUnit),
+          lineTotal: lineTotal(ci),
+          details: ci.designDetails,
+          options: ci.extras?.map((e) => `${e.label}：¥${fmt(e.unit)}（単価）`) || [],
         }))}
+        onOpenHeightChange={(h) => setBottomExtraSpace(h + 16)}
         disabled={false}
       />
 
