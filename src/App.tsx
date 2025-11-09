@@ -4,24 +4,21 @@ import NameTilePreview, {
   type ColorKey as PreviewColor,
 } from "./components/NameTilePreview";
 
-// ==========================
-// 型・ユーティリティ
-// ==========================
+/* =========================
+ * 型・ユーティリティ
+ * ========================= */
 type View = "shop" | "guidelines" | "corporate";
 type Flow = "original_single" | "fullset" | "regular";
 
-// 表示用ラベル
 const suitLabel = (s: "manzu" | "souzu" | "pinzu") =>
   s === "manzu" ? "萬子" : s === "souzu" ? "索子" : "筒子";
 
 const fmt = (n: number) => new Intl.NumberFormat("ja-JP").format(n);
-
-// 文字列を配列化
 const splitChars = (s: string) => Array.from(s || "");
 
-// ==========================
-// 価格表
-// ==========================
+/* =========================
+ * 価格表
+ * ========================= */
 const PRICING = {
   shipping: { flat: 390, freeOver: 5000 },
   products: {
@@ -52,9 +49,9 @@ const PRICING = {
   },
 } as const;
 
-// ==========================
-// 小さめUI部品
-// ==========================
+/* =========================
+ * 小さめUI
+ * ========================= */
 const Card: React.FC<{ title?: string; children: React.ReactNode; className?: string }> = ({
   title,
   children,
@@ -72,12 +69,15 @@ const Pill: React.FC<{
   children: React.ReactNode;
   title?: string;
   type?: "button" | "submit" | "reset";
-}> = ({ active, onClick, children, title, type = "button" }) => (
+  big?: boolean;
+}> = ({ active, onClick, children, title, type = "button", big }) => (
   <button
     type={type}
     onClick={onClick}
     title={title}
-    className={`px-3 py-1 rounded-xl text-sm border transition ${
+    className={`${
+      big ? "px-4 py-2" : "px-3 py-1"
+    } rounded-xl text-sm border transition ${
       active ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50"
     }`}
   >
@@ -105,11 +105,11 @@ const ProductCard: React.FC<{
   </button>
 );
 
-// ==========================
-// 本体
-// ==========================
+/* =========================
+ * 本体
+ * ========================= */
 export default function App() {
-  // --- ビュー切替（location.hash と同期） ---
+  /* ビュー切替（location.hash と同期） */
   const [activeView, setActiveView] = useState<View>(() => {
     const h = (location.hash || "").replace("#", "");
     return (["shop", "guidelines", "corporate"] as View[]).includes(h as View) ? (h as View) : "shop";
@@ -117,9 +117,7 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       const h = (location.hash || "").replace("#", "");
-      if ((["shop", "guidelines", "corporate"] as View[]).includes(h as View)) {
-        setActiveView(h as View);
-      }
+      if ((["shop", "guidelines", "corporate"] as View[]).includes(h as View)) setActiveView(h as View);
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -129,7 +127,7 @@ export default function App() {
     else setActiveView(v);
   };
 
-  // --- スクロール参照 ---
+  /* スクロール */
   const selectRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   const scrollToSelect = () => {
@@ -143,7 +141,7 @@ export default function App() {
     }
   };
 
-  // --- ステート群 ---
+  /* ステート群 */
   const [flow, setFlow] = useState<Flow>("original_single");
   const [originalSub, setOriginalSub] = useState<"single" | "fullset">("single");
   const [variant, setVariant] = useState<"standard" | "mm30" | "default">("standard");
@@ -152,6 +150,7 @@ export default function App() {
   const [designType, setDesignType] = useState<"name_print" | "bring_own" | "commission">("name_print");
   const [text, setText] = useState("麻雀");
   const [layout, setLayout] = useState<PreviewLayout>("vertical");
+  const [note, setNote] = useState("");
 
   // 色（プレビュー用）
   const [useUnifiedColor, setUseUnifiedColor] = useState(true);
@@ -171,31 +170,43 @@ export default function App() {
   const [regularNumber, setRegularNumber] = useState(1);
   const [regularHonor, setRegularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
 
-  // 数量
+  // 数量（サイズ選択の直後に配置するため、状態はここ）
   const [qty, setQty] = useState(1);
 
-  // アップロード
+  // アップロード（持ち込み）
   const [uploadSummary, setUploadSummary] = useState("");
   const [imagePreviews, setImagePreviews] = useState<
-    Array<{ src: string; name: string; type: "image" | "file" }>
+    Array<{ id: string; src: string; name: string; type: "image" | "file" }>
   >([]);
 
-  // 下部トースト
+  // カート（簡易モック）
+  type CartLine = {
+    id: string;
+    title: string;
+    qty: number;
+    unitPrice: number;
+    options: string[];
+    note?: string;
+    previewText?: string;
+  };
+  const [cart, setCart] = useState<CartLine[]>([]);
+
+  // トースト
   const [toast, setToast] = useState<string | null>(null);
 
-  // --- 依存制御 ---
+  /* 相互制御 */
   useEffect(() => {
     if (flow === "regular") {
       if (variant !== "default") setVariant("default");
       if (designType !== "name_print") setDesignType("name_print"); // 通常牌は名前入れUI以外無効
     } else {
       if (variant === "default") setVariant("standard");
-      if (flow === "fullset" && designType === "name_print") setDesignType("bring_own");
+      if (flow === "fullset" && designType === "name_print") setDesignType("bring_own"); // フルセットは名前入れ不可
       setOriginalSub(flow === "fullset" ? "fullset" : "single");
     }
   }, [flow, variant, designType]);
 
-  // --- 価格計算 ---
+  /* 価格計算 */
   const effectiveVariant = (f: Flow, v: "standard" | "mm30" | "default") =>
     f === "regular" ? "default" : v === "default" ? "standard" : v;
 
@@ -205,63 +216,82 @@ export default function App() {
     return obj?.variants?.[v]?.priceIncl || 0;
   }, [flow, variant]);
 
-  const optionPrice = useMemo(() => {
-    let opt = 0;
-
+  // オプション明細の生成（見積とカート共用）
+  const optionBreakdown = useMemo(() => {
+    const rows: { label: string; price: number }[] = [];
     const isFull = flow === "fullset";
     const isSingle = flow === "original_single";
 
-    // デザイン持ち込み料
     if (designType === "bring_own") {
-      opt += isFull
-        ? PRICING.options.design_submission_fullset.priceIncl
-        : PRICING.options.design_submission_single.priceIncl;
-
+      rows.push({
+        label: "デザイン持ち込み料",
+        price: isFull ? PRICING.options.design_submission_fullset.priceIncl : PRICING.options.design_submission_single.priceIncl,
+      });
       const extra = Math.max(0, (bringOwnColorCount || 1) - 1);
-      if (extra > 0) opt += PRICING.options.bring_own_color_unit.priceIncl * extra;
-    }
-
-    // 名前入れ時の追加色
-    if (isSingle && designType === "name_print") {
-      if (useUnifiedColor) {
-        if (unifiedColor === "rainbow") opt += PRICING.options.rainbow.priceIncl;
-      } else {
-        const uniq = Array.from(new Set(perCharColors));
-        const add = Math.max(0, uniq.length - 1);
-        if (add > 0) opt += PRICING.options.multi_color.priceIncl * add;
+      if (extra > 0) {
+        rows.push({
+          label: `持ち込み 追加色 ${extra}色`,
+          price: PRICING.options.bring_own_color_unit.priceIncl * extra,
+        });
       }
     }
 
-    // 桐箱（28mm単品 or 通常牌のみ）
-    if (!isFull && kiribako4) {
-      const ok = (flow === "original_single" && effectiveVariant(flow, variant) === "standard") || flow === "regular";
-      if (ok) opt += PRICING.options.kiribako_4.priceIncl;
+    if (isSingle && designType === "name_print") {
+      if (useUnifiedColor) {
+        if (unifiedColor === "rainbow") {
+          rows.push({ label: "レインボー", price: PRICING.options.rainbow.priceIncl });
+        }
+      } else {
+        const uniq = Array.from(new Set(perCharColors));
+        const add = Math.max(0, uniq.length - 1);
+        if (add > 0) rows.push({ label: `追加色 ${add}色`, price: PRICING.options.multi_color.priceIncl * add });
+      }
     }
 
-    if (!isFull && keyholder) opt += PRICING.options.keyholder.priceIncl;
+    if (!isFull && kiribako4) {
+      const ok = (flow === "original_single" && effectiveVariant(flow, variant) === "standard") || flow === "regular";
+      if (ok) rows.push({ label: "桐箱（4枚用）", price: PRICING.options.kiribako_4.priceIncl });
+    }
 
-    return opt;
-  }, [flow, variant, designType, bringOwnColorCount, useUnifiedColor, unifiedColor, perCharColors, keyholder, kiribako4]);
+    if (!isFull && keyholder) {
+      rows.push({ label: "キーホルダー", price: PRICING.options.keyholder.priceIncl });
+    }
+
+    return rows;
+  }, [
+    flow,
+    variant,
+    designType,
+    bringOwnColorCount,
+    useUnifiedColor,
+    unifiedColor,
+    perCharColors,
+    keyholder,
+    kiribako4,
+  ]);
+
+  const optionPrice = useMemo(() => optionBreakdown.reduce((a, b) => a + b.price, 0), [optionBreakdown]);
 
   const merchandiseSubtotal = baseUnit * Math.max(1, qty) + optionPrice;
   const shipping = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
   const total = merchandiseSubtotal + shipping;
 
-  // --- ファイル選択 ---
+  /* アップロード（持ち込み） */
   const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ALLOWED = ["jpg", "jpeg", "png", "psd", "ai", "tiff", "tif", "heic", "pdf"];
     const filesAll = Array.from(e.target.files || []);
     const files = filesAll.filter((f) => ALLOWED.includes((f.name.split(".").pop() || "").toLowerCase()));
 
-    const previews: Array<{ src: string; name: string; type: "image" | "file" }> = [];
+    const previews: Array<{ id: string; src: string; name: string; type: "image" | "file" }> = [];
     files.forEach((f) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       if (f.type.startsWith("image/") && f.type !== "image/heic") {
-        previews.push({ src: URL.createObjectURL(f), name: f.name, type: "image" });
+        previews.push({ id, src: URL.createObjectURL(f), name: f.name, type: "image" });
       } else {
-        previews.push({ src: "", name: f.name, type: "file" });
+        previews.push({ id, src: "", name: f.name, type: "file" });
       }
     });
-    setImagePreviews(previews);
+    setImagePreviews((prev) => [...prev, ...previews]);
 
     if (files.length === 0) {
       setUploadSummary("対応形式のファイルが選択されていません。");
@@ -269,9 +299,18 @@ export default function App() {
     }
     const names = files.map((f) => f.name).slice(0, 5);
     setUploadSummary(`${files.length} ファイルを読み込みました\n${names.join("\n")}${files.length > 5 ? "\n…" : ""}`);
+    e.currentTarget.value = ""; // 同じファイルを再選択できるように
   };
 
-  // --- 商品名 ---
+  const removePreview = (id: string) => {
+    setImagePreviews((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target?.src) URL.revokeObjectURL(target.src);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
+  /* 商品名 */
   const productTitle = useMemo(() => {
     const v = effectiveVariant(flow, variant);
     if (flow === "original_single") return `オリジナル麻雀牌（${v === "standard" ? "28mm" : "30mm"}）`;
@@ -281,10 +320,10 @@ export default function App() {
     return `通常牌（28mm／背面:${back}／${tile}）`;
   }, [flow, variant, regularBack, regularSuit, regularNumber, regularHonor]);
 
-  // --- 下部バー高さ ---
-  const BOTTOM_BAR_HEIGHT = 72;
+  /* 下部バー */
+  const BOTTOM_BAR_HEIGHT = 84;
 
-  // --- 追加：色選択UI（統一／個別） ---
+  /* 色選択 UI */
   const COLOR_LIST: { key: PreviewColor; label: string; dot: string }[] = [
     { key: "black", label: "ブラック", dot: "#0a0a0a" },
     { key: "red", label: "レッド", dot: "#d10f1b" },
@@ -297,7 +336,6 @@ export default function App() {
       dot: "linear-gradient(180deg,#ff2a2a 0%,#ff7a00 16%,#ffd400 33%,#00d06c 50%,#00a0ff 66%,#7a3cff 83%,#b400ff 100%)",
     },
   ];
-
   const renderColorDot = (css: string) => {
     const isGrad = css.startsWith("linear-gradient");
     return (
@@ -309,9 +347,42 @@ export default function App() {
     );
   };
 
-  // ==========================
-  // 描画
-  // ==========================
+  /* カート追加 */
+  const addToCart = () => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const optionsText = optionBreakdown.map((r) => `${r.label}: +¥${fmt(r.price)}`);
+    if (designType === "name_print" && (flow === "original_single" || flow === "regular")) {
+      optionsText.unshift(`デザイン: ${text || "（未入力）"} / レイアウト:${layout === "vertical" ? "縦" : "横"}`);
+    }
+    if (note.trim()) {
+      optionsText.push(`備考: ${note.trim()}`);
+    }
+
+    setCart((prev) => [
+      ...prev,
+      {
+        id,
+        title: productTitle,
+        qty: Math.max(1, qty),
+        unitPrice: baseUnit + optionPrice,
+        options: optionsText,
+        note: note.trim() || undefined,
+        previewText: text || undefined,
+      },
+    ]);
+    setToast("カートに追加しました。");
+    setTimeout(() => setToast(null), 1600);
+  };
+
+  const removeCartLine = (id: string) => setCart((prev) => prev.filter((l) => l.id !== id));
+
+  /* 合計（カート全体） */
+  const cartMerch = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0);
+  const cartShipping = cartMerch >= PRICING.shipping.freeOver || cartMerch === 0 ? 0 : PRICING.shipping.flat;
+  const cartTotal = cartMerch + cartShipping;
+
+  /* 描画 */
   return (
     <div
       ref={pageRef}
@@ -347,6 +418,47 @@ export default function App() {
           </nav>
         </div>
       </header>
+
+      {/* ミニカート（常時表示） */}
+      <div className="max-w-5xl mx-auto px-4 mt-3">
+        <div className="rounded-xl border bg-white p-3">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">カート</div>
+            <div className="text-sm text-neutral-600">
+              合計 ¥{fmt(cartTotal)}（送料{cartShipping === 0 ? "0円" : `${fmt(cartShipping)}円`}）
+            </div>
+          </div>
+          {cart.length === 0 ? (
+            <div className="text-sm text-neutral-500 mt-2">カートは空です。</div>
+          ) : (
+            <div className="mt-2 space-y-3">
+              {cart.map((l) => (
+                <div key={l.id} className="border rounded-lg p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{l.title}</div>
+                      <div className="text-xs text-neutral-600">単価 ¥{fmt(l.unitPrice)} / 数量 {l.qty}</div>
+                    </div>
+                    <button
+                      className="text-xs px-2 py-1 rounded border hover:bg-neutral-50"
+                      onClick={() => removeCartLine(l.id)}
+                    >
+                      削除
+                    </button>
+                  </div>
+                  {l.options.length > 0 && (
+                    <ul className="text-xs text-neutral-700 list-disc ml-5 mt-1 space-y-0.5">
+                      {l.options.map((o, i) => (
+                        <li key={i}>{o}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ヒーロー（ショップのみ） */}
       {activeView === "shop" && (
@@ -428,55 +540,46 @@ export default function App() {
               </div>
             )}
 
-            {/* 注釈（選択に応じて切替） */}
             <div className="mt-3 text-xs text-neutral-600 space-y-1">
               {flow === "original_single" && (
                 <>
-                  <div>
-                    発送目安：<b>約2〜3週間</b>
-                  </div>
-                  <div>
-                    割引：<b>5個で10%</b> / <b>10個で15%</b>
-                  </div>
+                  <div>発送目安：<b>約2〜3週間</b></div>
+                  <div>割引：<b>5個で10%</b> / <b>10個で15%</b></div>
                 </>
               )}
               {flow === "fullset" && (
                 <>
-                  <div>
-                    発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）
-                  </div>
-                  <div>
-                    割引：<b>5セットで20%</b>
-                  </div>
+                  <div>発送目安：<b>約3ヶ月</b>（<u>デザイン開発期間を除く</u>）</div>
+                  <div>割引：<b>5セットで20%</b></div>
                 </>
               )}
             </div>
           </Card>
 
-          {/* 2. 分岐 */}
+          {/* 2. デザイン */}
           {flow === "regular" ? (
-            <Card title="2. 背面色と牌の選択（通常牌）">
+            <Card title="2. デザイン（通常牌）">
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <label className="w-20">背面色</label>
-                <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>
+                <Pill big active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>
                   黄色
                 </Pill>
-                <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>
+                <Pill big active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>
                   青色
                 </Pill>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="w-20">種別</label>
-                <Pill active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>
+                <Pill big active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>
                   字牌
                 </Pill>
-                <Pill active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>
+                <Pill big active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>
                   萬子
                 </Pill>
-                <Pill active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>
+                <Pill big active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>
                   索子
                 </Pill>
-                <Pill active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>
+                <Pill big active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>
                   筒子
                 </Pill>
               </div>
@@ -484,7 +587,7 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <label className="w-20">字牌</label>
                   {["東", "南", "西", "北", "白", "發", "中"].map((h) => (
-                    <Pill key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>
+                    <Pill big key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>
                       {h}
                     </Pill>
                   ))}
@@ -493,30 +596,26 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <label className="w-20">数字</label>
                   {Array.from({ length: 9 }).map((_, i) => (
-                    <Pill key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>
+                    <Pill big key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>
                       {i + 1}
                     </Pill>
                   ))}
                 </div>
               )}
-              <div className="mt-4">
-                <div className="text-xs text-neutral-600 space-y-1">
-                  <div>※ 他の牌と混同しないようご注意ください。個人の鑑賞・コレクション用途を想定しています。</div>
-                  <div>※ 製造ロット等により色味が異なる場合があります。</div>
-                </div>
-              </div>
             </Card>
           ) : (
-            <Card title="2. デザイン確認">
-              {/* デザイン方式 */}
+            <Card title="2. デザイン">
+              {/* デザイン方式（フルセットは名前入れ非表示） */}
               <div className="flex flex-wrap gap-2">
-                <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
-                  名前入れ
-                </Pill>
-                <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>
+                {flow !== "fullset" && (
+                  <Pill big active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
+                    名前入れ
+                  </Pill>
+                )}
+                <Pill big active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>
                   デザイン持ち込み
                 </Pill>
-                <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>
+                <Pill big active={designType === "commission"} onClick={() => setDesignType("commission")}>
                   デザイン依頼
                 </Pill>
               </div>
@@ -524,7 +623,7 @@ export default function App() {
               {/* 名前入れフォーム */}
               {designType === "name_print" && (
                 <div className="grid md:grid-cols-2 gap-4 items-start mt-4">
-                  {/* 入力カラム */}
+                  {/* 入力 */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <label className="w-24">文字</label>
@@ -535,46 +634,35 @@ export default function App() {
                         placeholder="縦4文字／横は自動改行"
                       />
                     </div>
-
                     <div className="flex items-center gap-2">
                       <label className="w-24">レイアウト</label>
-                      <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>
+                      <Pill big active={layout === "vertical"} onClick={() => setLayout("vertical")}>
                         縦
                       </Pill>
-                      <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>
+                      <Pill big active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>
                         横
                       </Pill>
                     </div>
-
-                    {/* 色指定：統一 or 個別 */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <label className="w-24">色指定</label>
-                        <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>
+                        <Pill big active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>
                           一括指定
                         </Pill>
-                        <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>
+                        <Pill big active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>
                           1文字ずつ
                         </Pill>
                       </div>
-
-                      {/* 一括指定 */}
                       {useUnifiedColor ? (
                         <div className="flex flex-wrap gap-2 pl-24">
                           {COLOR_LIST.map((c) => (
-                            <Pill
-                              key={c.key}
-                              active={unifiedColor === c.key}
-                              onClick={() => setUnifiedColor(c.key)}
-                              title={c.label}
-                            >
+                            <Pill big key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)} title={c.label}>
                               {renderColorDot(c.dot)}
                               {c.label}
                             </Pill>
                           ))}
                         </div>
                       ) : (
-                        // 個別指定（全選択肢を展開）
                         <div className="pl-24 space-y-2">
                           {splitChars(text || "麻雀").map((ch, idx) => (
                             <div key={idx} className="flex items-center gap-2">
@@ -582,6 +670,7 @@ export default function App() {
                               <div className="flex flex-wrap gap-2">
                                 {COLOR_LIST.map((c) => (
                                   <Pill
+                                    big
                                     key={c.key}
                                     active={(perCharColors[idx] || "black") === c.key}
                                     onClick={() => {
@@ -601,9 +690,20 @@ export default function App() {
                         </div>
                       )}
                     </div>
+
+                    {/* 備考 */}
+                    <div className="flex items-start gap-2">
+                      <label className="w-24 mt-2">備考</label>
+                      <textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        className="border rounded px-3 py-2 w-full h-24"
+                        placeholder="例）右上の文字だけ赤に、など"
+                      />
+                    </div>
                   </div>
 
-                  {/* プレビューカラム */}
+                  {/* プレビュー */}
                   <div>
                     <NameTilePreview
                       text={text || "麻雀"}
@@ -643,8 +743,8 @@ export default function App() {
                       )}
                       {imagePreviews.length > 0 && (
                         <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mt-3">
-                          {imagePreviews.map((p, i) => (
-                            <div key={i} className="relative text-center text-xs">
+                          {imagePreviews.map((p) => (
+                            <div key={p.id} className="relative text-center text-xs group">
                               {p.type === "image" ? (
                                 <img src={p.src} alt={p.name} className="w-full h-24 object-cover rounded border" />
                               ) : (
@@ -652,6 +752,15 @@ export default function App() {
                                   {p.name.split(".").pop()?.toUpperCase()}
                                 </div>
                               )}
+                              <button
+                                className="absolute top-1 right-1 text-[11px] px-1.5 py-0.5 rounded bg-white/90 border shadow hover:bg-white"
+                                onClick={() => removePreview(p.id)}
+                                type="button"
+                                aria-label="ファイルを削除"
+                              >
+                                削除
+                              </button>
+                              <div className="truncate mt-1">{p.name}</div>
                             </div>
                           ))}
                         </div>
@@ -673,6 +782,17 @@ export default function App() {
                         />
                         <span className="text-xs text-neutral-600">※ 追加1色ごとに+¥200</span>
                       </div>
+
+                      {/* 備考 */}
+                      <div className="mt-3">
+                        <label className="text-sm block mb-1">備考</label>
+                        <textarea
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                          className="border rounded px-3 py-2 w-full h-24"
+                          placeholder="例）白フチあり、など"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -680,138 +800,138 @@ export default function App() {
 
               {/* デザイン依頼 */}
               {designType === "commission" && (
-                <p className="text-xs text-neutral-600 mt-4">※デザイン料は別途お見積りとなります。</p>
+                <div className="mt-3">
+                  <div className="text-xs text-neutral-600 mb-2">※デザイン料は別途お見積りとなります。</div>
+                  <div className="flex items-start gap-2">
+                    <label className="w-24 mt-2">備考</label>
+                    <textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      className="border rounded px-3 py-2 w-full h-24"
+                      placeholder="ご要望をご記入ください（参考画像は問い合わせから添付してください）"
+                    />
+                  </div>
+                </div>
               )}
             </Card>
           )}
 
-          {/* 3. サイズ選択（オリジナルのみ） */}
+          {/* 3. サイズ選択（数量もここに） */}
           {(flow === "original_single" || flow === "fullset") && (
             <Card title="3. サイズ選択">
-              <div className="flex gap-2">
-                <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill big active={variant === "standard"} onClick={() => setVariant("standard")}>
                   28mm
                 </Pill>
-                <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>
+                <Pill big active={variant === "mm30"} onClick={() => setVariant("mm30")}>
                   30mm
                 </Pill>
+
+                {/* 数量（ここへ移動） */}
+                <div className="ml-4 flex items-center gap-2">
+                  <label className="text-sm">数量</label>
+                  <input
+                    type="number"
+                    value={qty}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+                    }}
+                    className="border rounded px-3 py-2 w-24"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                  />
+                </div>
               </div>
 
-              {/* 対応機種（アコーディオン） */}
+              {/* 対応機種（選択サイズに応じて切替） */}
               <details className="mt-3">
-                <summary className="cursor-pointer select-none text-sm font-medium">対応機種（28mmを選択時のみ表示）</summary>
-                {variant === "standard" && (
-                  <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
-                    <div>
-                      <div className="font-semibold mb-1">対応機種（28mm）</div>
-                      <ul className="list-disc ml-5 space-y-0.5">
-                        <li>AMOS REXX</li>
-                        <li>AMOS REXX2</li>
-                        <li>AMOSアルティマ</li>
-                        <li>AMOSセヴィア</li>
-                        <li>AMOSセヴィアHD</li>
-                        <li>AMOSヴィエラ</li>
-                        <li>AMOSシャルム</li>
-                        <li>AMOSジョイ</li>
-                        <li>AMOSキューブ</li>
-                        <li>AMOSキューブHD</li>
-                        <li>ニンジャB4 HD</li>
-                        <li>ニンジャB4 STANDARD</li>
-                      </ul>
-                      <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
-                    </div>
-                    <div>
-                      <div className="font-semibold mb-1">対応機種（30mm）</div>
-                      <ul className="list-disc ml-5 space-y-0.5">
-                        <li>AMOS JP2</li>
-                        <li>AMOS JPEX</li>
-                        <li>AMOS JPCOLOR</li>
-                        <li>AMOS JPDG</li>
-                      </ul>
-                      <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
-                    </div>
-                  </div>
-                )}
+                <summary className="cursor-pointer select-none text-sm font-medium">対応機種</summary>
+                <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
+                  {variant === "standard" ? (
+                    <>
+                      <div>
+                        <div className="font-semibold mb-1">対応機種（28mm）</div>
+                        <ul className="list-disc ml-5 space-y-0.5">
+                          <li>AMOS REXX</li>
+                          <li>AMOS REXX2</li>
+                          <li>AMOSアルティマ</li>
+                          <li>AMOSセヴィア</li>
+                          <li>AMOSセヴィアHD</li>
+                          <li>AMOSヴィエラ</li>
+                          <li>AMOSシャルム</li>
+                          <li>AMOSジョイ</li>
+                          <li>AMOSキューブ</li>
+                          <li>AMOSキューブHD</li>
+                          <li>ニンジャB4 HD</li>
+                          <li>ニンジャB4 STANDARD</li>
+                        </ul>
+                        <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <div className="font-semibold mb-1">対応機種（30mm）</div>
+                        <ul className="list-disc ml-5 space-y-0.5">
+                          <li>AMOS JP2</li>
+                          <li>AMOS JPEX</li>
+                          <li>AMOS JPCOLOR</li>
+                          <li>AMOS JPDG</li>
+                        </ul>
+                        <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </details>
             </Card>
           )}
 
-          {/* 4. オプション・見積もり */}
-          <Card title="4. オプション・見積もり">
+          {/* 4. オプション（見積とは分離） */}
+          <Card title="4. オプション">
+            <div className="flex flex-col gap-2">
+              {flow !== "fullset" && (
+                <label className="inline-flex items-center gap-3 p-3 border rounded-xl hover:bg-neutral-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={keyholder}
+                    onChange={(e) => setKeyholder(e.target.checked)}
+                  />
+                  <span className="text-sm">キーホルダー（+¥{fmt(PRICING.options.keyholder.priceIncl)}）</span>
+                </label>
+              )}
+
+              {((flow === "original_single" && variant === "standard") || flow === "regular") && (
+                <label className="inline-flex items-center gap-3 p-3 border rounded-xl hover:bg-neutral-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={kiribako4}
+                    onChange={(e) => setKiribako4(e.target.checked)}
+                  />
+                  <span className="text-sm">桐箱（4枚用 / +¥{fmt(PRICING.options.kiribako_4.priceIncl)}）</span>
+                </label>
+              )}
+            </div>
+          </Card>
+
+          {/* 5. 見積（オプション明細あり） */}
+          <Card title="5. 見積">
             <div className="grid md:grid-cols-2 gap-4">
-              {/* オプション（切替） */}
-              <div className="space-y-3">
-                <div className="text-sm font-medium">オプション</div>
-
-                {flow !== "fullset" && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="opt-keyholder"
-                      type="checkbox"
-                      checked={keyholder}
-                      onChange={(e) => setKeyholder(e.target.checked)}
-                    />
-                    <label htmlFor="opt-keyholder" className="text-sm">
-                      キーホルダー（+¥{fmt(PRICING.options.keyholder.priceIncl)}）
-                    </label>
-                  </div>
-                )}
-
-                {((flow === "original_single" && variant === "standard") || flow === "regular") && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="opt-kiribako"
-                      type="checkbox"
-                      checked={kiribako4}
-                      onChange={(e) => setKiribako4(e.target.checked)}
-                    />
-                    <label htmlFor="opt-kiribako" className="text-sm">
-                      桐箱（4枚用 / +¥{fmt(PRICING.options.kiribako_4.priceIncl)}）
-                    </label>
-                  </div>
-                )}
-
-                {/* 適用される追加費用の表示だけ（計算は optionPrice 側で実施） */}
-                <div className="text-xs text-neutral-600">
-                  <ul className="list-disc ml-5 space-y-1">
-                    {designType === "bring_own" && (
-                      <>
-                        <li>持ち込みデザイン料：{flow === "fullset" ? "¥5,000" : "¥500"}</li>
-                        {Math.max(1, bringOwnColorCount) > 1 && (
-                          <li>
-                            追加色 {Math.max(1, bringOwnColorCount) - 1}色：+¥
-                            {fmt(PRICING.options.bring_own_color_unit.priceIncl * (Math.max(1, bringOwnColorCount) - 1))}
-                          </li>
-                        )}
-                      </>
-                    )}
-                    {designType === "name_print" &&
-                      (useUnifiedColor ? (
-                        unifiedColor === "rainbow" ? <li>レインボー：+¥{fmt(PRICING.options.rainbow.priceIncl)}</li> : null
-                      ) : (
-                        (() => {
-                          const uniq = Array.from(new Set(perCharColors));
-                          const add = Math.max(0, uniq.length - 1);
-                          return add > 0 ? <li>追加色 {add}色：+¥{fmt(PRICING.options.multi_color.priceIncl * add)}</li> : null;
-                        })()
-                      ))}
-                  </ul>
-                </div>
-              </div>
-
-              {/* 見積 */}
               <div>
-                <div className="text-sm font-medium mb-2">見積</div>
+                <div className="text-sm font-medium mb-2">明細</div>
                 <table className="w-full text-sm">
                   <tbody>
                     <tr>
                       <td className="py-1 text-neutral-600">商品</td>
                       <td className="py-1 text-right">¥{fmt(baseUnit)}</td>
                     </tr>
-                    <tr>
-                      <td className="py-1 text-neutral-600">オプション</td>
-                      <td className="py-1 text-right">¥{fmt(optionPrice)}</td>
-                    </tr>
+                    {optionBreakdown.map((r, i) => (
+                      <tr key={i}>
+                        <td className="py-1 text-neutral-600">{r.label}</td>
+                        <td className="py-1 text-right">+¥{fmt(r.price)}</td>
+                      </tr>
+                    ))}
                     <tr>
                       <td className="py-1 text-neutral-600">数量</td>
                       <td className="py-1 text-right">× {qty}</td>
@@ -830,20 +950,24 @@ export default function App() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
 
-                <div className="flex items-center gap-2 mt-3">
-                  <label className="text-sm">数量</label>
-                  <input
-                    type="number"
-                    value={qty}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
-                    }}
-                    className="border rounded px-3 py-2 w-24"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                  />
+              <div className="flex items-end justify-end">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="px-5 py-3 rounded-xl border text-sm hover:bg-neutral-50"
+                    onClick={addToCart}
+                  >
+                    カートに追加
+                  </button>
+                  <button
+                    type="button"
+                    className="px-5 py-3 rounded-xl bg-black text-white text-sm"
+                    onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}
+                  >
+                    購入手続きへ
+                  </button>
                 </div>
               </div>
             </div>
@@ -895,41 +1019,41 @@ export default function App() {
         </section>
       )}
 
-      {/* 下部固定バー */}
-      <div
-        style={{ height: BOTTOM_BAR_HEIGHT }}
-        className="fixed left-0 right-0 bottom-0 z-30 bg-white/95 border-t backdrop-blur"
-      >
-        <div className="max-w-5xl mx-auto h-full px-4 flex items-center justify-between">
-          <div className="text-sm">
-            <div className="font-semibold">{productTitle}</div>
-            <div className="text-neutral-600">合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl border"
-              onClick={() => {
-                setToast("カートに追加（ダミー）しました。");
-                setTimeout(() => setToast(null), 1800);
-              }}
-            >
-              カートに追加
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl bg-black text-white"
-              onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}
-            >
-              購入手続きへ
-            </button>
+      {/* ボトムバー（中央寄せ・カード型） */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30">
+        <div className="pointer-events-auto mx-auto max-w-xl w-[92%]">
+          <div className="rounded-2xl border bg-white/95 backdrop-blur shadow-lg px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-semibold truncate">{productTitle}</div>
+                <div className="text-xs text-neutral-600">
+                  現在の見積 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-xl border text-sm hover:bg-neutral-50"
+                  onClick={addToCart}
+                >
+                  カートへ
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-xl bg-black text-white text-sm"
+                  onClick={() => window.open("https://checkout.shopify.com/mock", "_blank")}
+                >
+                  購入
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* トースト */}
       {toast && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[88px] z-40 px-4 py-2 rounded-xl bg-black text-white text-sm shadow">
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-[110px] z-40 px-4 py-2 rounded-xl bg-black text-white text-sm shadow">
           {toast}
         </div>
       )}
