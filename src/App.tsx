@@ -7,7 +7,7 @@
   - 4文字超で自動2行（縦は2列、横は2行）。
 */
 
-import React, { useMemo, useState } from "react";
+import React, { $1, useEffect } from "react";
 
 // ===== 色ユーティリティ =====
 const PALETTE = [
@@ -50,13 +50,11 @@ function TilePreview({
   const aspect = layout === "vertical" ? 21 / 28 : 28 / 21; // おおよそ実寸比
 
   // 文字サイズの概算：内側の短辺 / 文字数（行/列）で調整
-  const perCol = groups[0]?.length || 1;
-  const perRow = groups.length; // 1 または 2
-  const baseShortSide = 340; // できるだけ大きく
-  const fontSize = Math.max(
-    28,
-    Math.floor((baseShortSide / Math.max(perCol, 1)) * (layout === "vertical" ? 1.28 : 1.22)) / perRow
-  );
+  const cols = groups.reduce((m, g) => Math.max(m, g.length), 0);
+  const rows = groups.length; // 1 または 2
+  const baseShortSide = 360; // 枠いっぱいまで
+  const k = layout === "vertical" ? 1.45 : 1.40;
+  const fontSize = Math.max(28, Math.floor((baseShortSide / Math.max(cols, 1)) * k));
 
   // CSS ヘルパ（レインボー塗り）
   const colorStyle = (k: ColorKey): React.CSSProperties =>
@@ -168,6 +166,36 @@ function ColorOption({
 
 // ====== アプリ本体 ======
 export default function App() {
+  // Typekit (TA風雅筆) ロード
+  useEffect(() => {
+    (function (d: Document) {
+      const config = { kitId: "xew3lay", scriptTimeout: 3000, async: true } as const;
+      const h = d.documentElement;
+      const t = window.setTimeout(() => {
+        h.className = h.className.replace(/wf-loading/g, "") + " wf-inactive";
+      }, config.scriptTimeout);
+      const tk = d.createElement("script");
+      let f = false as boolean;
+      const s = d.getElementsByTagName("script")[0];
+      let a: string | undefined;
+      h.className += " wf-loading";
+      tk.src = "https://use.typekit.net/" + config.kitId + ".js";
+      (tk as any).async = true;
+      (tk.onload = tk.onreadystatechange = function () {
+        // @ts-ignore
+        a = this.readyState;
+        if (f || (a && a !== "complete" && a !== "loaded")) return;
+        f = true;
+        clearTimeout(t);
+        try {
+          // @ts-ignore
+          (window as any).Typekit.load(config);
+        } catch (e) {}
+      }) as any;
+      s.parentNode?.insertBefore(tk, s);
+    })(document);
+  }, []);
+
   const [text, setText] = useState("一刀");
   const [layout, setLayout] = useState<"vertical" | "horizontal">("vertical");
   const [fontKey, setFontKey] = useState("ta-fuga-fude");
@@ -240,7 +268,7 @@ export default function App() {
                   className={`px-3 py-1 rounded-lg border ${fontKey === "ta-fuga-fude" ? "bg-black text-white" : ""}`}
                   onClick={() => setFontKey("ta-fuga-fude")}
                 >
-                  萬子風（TA風雅筆）
+                  萬子風
                 </button>
                 <button
                   className={`px-3 py-1 rounded-lg border ${fontKey === "gothic" ? "bg-black text-white" : ""}`}
@@ -275,7 +303,7 @@ export default function App() {
                   </div>
                 </div>
               ))}
-              <div className="text-xs text-neutral-600">※ デフォルトは黒。レインボーは上下グラデーションで表現します。</div>
+              
             </div>
           </div>
         </section>
