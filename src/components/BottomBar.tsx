@@ -4,24 +4,21 @@ type CartRow = {
   id: string;
   title: string;
   qty: number;
-  lineTotal: number;       // この行の小計
+  lineTotal: number;       // （この行の）割引後小計
   details?: string[];      // デザイン内容など
   options?: string[];      // オプション明細
 };
 
 type Props = {
-  subtotal: number;        // 割引適用後の商品+オプション小計
-  shipping: number;
-  discount: number;        // 割引額（0可）
-  total: number;
+  subtotal: number;        // カート小計（割引後／送料前）
+  shipping: number;        // 送料（小計に応じた実額）
+  discount: number;        // 割引合計
+  total: number;           // 支払合計（小計＋送料）
   onAddToCart: () => void;
   items: CartRow[];
   disabled?: boolean;
-  /** 開閉と高さに応じて親側が余白を確保できるよう通知 */
-  onOpenHeightChange?: (extraHeight: number) => void;
+  onOpenHeightChange?: (extraHeight: number) => void; // バーの総高さを親へ通知
 };
-
-const CLOSED_BAR_H = 60; // actions行の高さ目安（px）
 
 export default function BottomBar({
   subtotal,
@@ -34,30 +31,35 @@ export default function BottomBar({
   onOpenHeightChange,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   const itemCount = useMemo(() => items.reduce((s, it) => s + it.qty, 0), [items]);
 
-  // 開閉・内容変化に応じて高さを親へ通知（重なり回避用）
+  // 高さ通知（重なり防止）
   useEffect(() => {
-    const bodyH = open ? (bodyRef.current?.offsetHeight || 0) : 0;
-    const actionsH = actionsRef.current?.offsetHeight || CLOSED_BAR_H;
-    const extra = bodyH + actionsH;
-    onOpenHeightChange?.(extra);
+    const h =
+      (headerRef.current?.offsetHeight || 0) +
+      (open ? bodyRef.current?.offsetHeight || 0 : 0) +
+      (actionsRef.current?.offsetHeight || 0);
+    onOpenHeightChange?.(h);
   }, [open, items, onOpenHeightChange]);
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur border-t">
-      {/* アコーディオン ヘッダー（中央寄せのコンテナ） */}
+      {/* ヘッダー（中央コンテナ） */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full text-left"
         aria-expanded={open}
       >
-        <div className="mx-auto max-w-5xl px-4 py-2 flex items-center justify-between">
-          <div className="text-sm flex items-center gap-3">
+        <div
+          ref={headerRef}
+          className="mx-auto max-w-5xl px-4 py-2 flex items-center justify-between"
+        >
+          <div className="text-sm flex items-center gap-3 mx-auto">
             <span className="inline-flex items-center text-xs rounded-full border px-2 py-0.5">
               カート {itemCount} 件
             </span>
@@ -71,15 +73,15 @@ export default function BottomBar({
               割引: <b>-¥{discount.toLocaleString()}</b>
             </span>
           </div>
-          <div className="text-xs">{open ? "閉じる ▲" : "中身を表示 ▼"}</div>
+          <div className="text-xs shrink-0 ml-3">{open ? "閉じる ▲" : "中身を表示 ▼"}</div>
         </div>
       </button>
 
-      {/* アコーディオン ボディ（コンテナ中央） */}
+      {/* 中身（中央コンテナ） */}
       {open && (
         <div ref={bodyRef} className="mx-auto max-w-5xl px-4 pb-2">
           {items.length === 0 ? (
-            <div className="text-xs text-neutral-500 py-2">カートに商品がありません。</div>
+            <div className="text-xs text-neutral-500 py-2 text-center">カートに商品がありません。</div>
           ) : (
             <ul className="divide-y rounded-xl border bg-white">
               {items.map((it) => (
@@ -90,12 +92,16 @@ export default function BottomBar({
                       <div className="text-xs text-neutral-600">数量：{it.qty}</div>
                       {it.details && it.details.length > 0 && (
                         <ul className="mt-1 text-xs text-neutral-700 list-disc list-inside space-y-0.5">
-                          {it.details.map((d, i) => <li key={i} className="whitespace-nowrap">{d}</li>)}
+                          {it.details.map((d, i) => (
+                            <li key={i} className="whitespace-nowrap">{d}</li>
+                          ))}
                         </ul>
                       )}
                       {it.options && it.options.length > 0 && (
                         <ul className="mt-1 text-xs text-neutral-700 list-disc list-inside space-y-0.5">
-                          {it.options.map((d, i) => <li key={i} className="whitespace-nowrap">{d}</li>)}
+                          {it.options.map((d, i) => (
+                            <li key={i} className="whitespace-nowrap">{d}</li>
+                          ))}
                         </ul>
                       )}
                     </div>
@@ -108,9 +114,12 @@ export default function BottomBar({
         </div>
       )}
 
-      {/* アクション行 */}
-      <div ref={actionsRef} className="mx-auto max-w-5xl px-4 py-2 flex items-center justify-between">
-        <div className="text-sm">
+      {/* アクション行（中央コンテナ） */}
+      <div
+        ref={actionsRef}
+        className="mx-auto max-w-5xl px-4 py-2 flex items-center justify-between"
+      >
+        <div className="text-sm mx-auto">
           合計: <span className="font-semibold">¥{total.toLocaleString()}</span>
         </div>
         <div className="flex gap-2">
