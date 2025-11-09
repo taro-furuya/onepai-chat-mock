@@ -591,15 +591,14 @@ export default function App() {
                       )}
                     </div>
                   </div>
-
-                  {/* プレビュー */}
-                  <div>
-                    <NameTilePreview
-                      text={text || "麻雀"}
-                      layout={layout}
-                      perCharColors={perCharColors as PreviewColor[]}
-                      useUnifiedColor={useUnifiedColor}
-                      unifiedColor={unifiedColor}
+                  
+                  {/* プレビューカード内 */ }
+                  <NameTilePreview
+                    text={text || "麻雀"}
+                    layout={layout}
+                    useUnifiedColor={useUnifiedColor}
+                    unifiedColor={unifiedColor}
+                    perCharColors={perCharColors}
                     />
                     <div className="text-xs text-neutral-500 mt-2">
                       ※ 全角4文字を超えると自動で2段に分割します（縦：右→左、横：上→下）。
