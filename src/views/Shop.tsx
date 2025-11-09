@@ -5,6 +5,10 @@ import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview
 import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 
+/** 追加: 分割済みコンポーネント（PR1） */
+import BottomBar from "../components/BottomBar";
+import MiniCart from "../components/MiniCart";
+
 /** ----------------- 型・定数 ----------------- */
 type Flow = "original_single" | "fullset" | "regular";
 type FontKey = "ta-fuga-fude" | "gothic" | "mincho";
@@ -12,9 +16,9 @@ type CartItem = {
   id: string;
   title: string;
   qty: number;
-  unit: number;
-  optionUnit: number;
-  discount: number;
+  unit: number;       // 商品単価
+  optionUnit: number; // オプション単価（単価扱い）
+  discount: number;   // 行全体に対する割引額（見積の割引額と一致）
   note?: string;
   extras: { label: string; unit: number }[];
 };
@@ -837,67 +841,45 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         </Card>
       </section>
 
-      {/* ===== ボトムバー（画面下“全面”、中央寄せ） ===== */}
-      <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
-        <div style={{ ...containerStyle }} className="h-[76px] px-4 flex items-center justify-between">
-          <div className="text-sm">
-            <div className="font-semibold">{productTitle}</div>
-            <div className="text-neutral-600">
-              合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" className="px-4 py-2 rounded-xl border" onClick={addToCart}>
-              カートに追加
-            </button>
-            <button type="button" className="px-4 py-2 rounded-xl border" onClick={() => setMiniCartOpen(true)}>
-              ミニカート
-            </button>
-            <button type="button" className="px-5 py-2 rounded-xl bg-black text-white" onClick={() => setMiniCartOpen(true)}>
-              購入手続きへ
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* ===== PR1のBottomBarを使用（全幅固定・中央寄せ） ===== */}
+      <BottomBar
+        subtotal={merchandiseSubtotal}
+        shipping={shipping}
+        total={total}
+        onAddToCart={addToCart}
+        onOpenMiniCart={() => setMiniCartOpen(true)}
+        disabled={false}
+      />
 
-      {/* ===== ミニカート（ボトムバー“の上”にセンター表示） ===== */}
-      {miniCartOpen && (
-        <div className="fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMiniCartOpen(false)} aria-hidden />
-          <div
-            className="absolute w-[min(960px,92vw)] bg-white rounded-2xl shadow-2xl p-4"
-            style={{ left: "50%", transform: "translateX(-50%)", bottom: BOTTOM_BAR_HEIGHT + 12 }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold">カート</div>
-              <button className="px-3 py-1 rounded border" onClick={() => setMiniCartOpen(false)}>
-                閉じる
-              </button>
-            </div>
-
-            {cartItems.length === 0 ? (
-              <div className="text-sm text-neutral-600 p-6 text-center">カートは空です。</div>
-            ) : (
-              <div className="mt-3 space-y-3">
-                {cartItems.map((ci) => (
-                  <div key={ci.id} className="border rounded-lg p-3">
-                    <div className="font-medium">{ci.title}</div>
-                    <div className="text-sm text-neutral-600">数量：{ci.qty}</div>
-                    {ci.note && <div className="text-xs text-neutral-600 mt-1">備考：{ci.note}</div>}
-                    {ci.extras.length > 0 && (
-                      <ul className="text-xs list-disc ml-5 mt-1 space-y-1">
-                        {ci.extras.map((e, i) => (
-                          <li key={i}>
-                            {e.label}：¥{fmt(e.unit)}（単価）
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className="text-right text-sm mt-1">小計：¥{fmt(lineTotal(ci))}</div>
+      {/* ===== PR1のMiniCartを使用（ボトムバー直上センター表示） ===== */}
+      <MiniCart open={miniCartOpen} onClose={() => setMiniCartOpen(false)}>
+        {cartItems.length === 0 ? (
+          <div className="text-sm text-neutral-600 p-6 text-center">カートは空です。</div>
+        ) : (
+          <>
+            <ul className="divide-y">
+              {cartItems.map((ci) => (
+                <li key={ci.id} className="py-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{ci.title}</div>
+                      <div className="text-neutral-600">数量：{ci.qty}</div>
+                      {ci.note && <div className="text-xs text-neutral-600 mt-1">備考：{ci.note}</div>}
+                      {ci.extras.length > 0 && (
+                        <ul className="text-xs list-disc list-inside mt-1 space-y-1 text-neutral-700">
+                          {ci.extras.map((e, i) => (
+                            <li key={i}>
+                              {e.label}：¥{fmt(e.unit)}（単価）
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="text-right whitespace-nowrap">小計：¥{fmt(lineTotal(ci))}</div>
                   </div>
-                ))}
-              </div>
-            )}
+                </li>
+              ))}
+            </ul>
 
             <div className="mt-3 border-t pt-3 text-right space-y-1">
               <div className="text-lg font-semibold">
@@ -909,9 +891,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </div>
               <button className="mt-2 px-5 py-2 rounded-xl bg-black text-white">この内容で注文（ダミー）</button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </MiniCart>
 
       {/* トースト */}
       {toast && (
