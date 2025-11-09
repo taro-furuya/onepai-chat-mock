@@ -5,15 +5,16 @@ const Hero: React.FC<{ onPrimary: () => void; onSecondary: () => void }> = ({
   onSecondary,
 }) => {
   return (
-    <section className="rounded-2xl border shadow-sm overflow-hidden mt-4">
-      <div className="relative">
-        <div
-          className="h-40 md:h-56"
-          style={{
-            background:
-              "radial-gradient(1200px 400px at 20% -10%, #4b5563 0%, #111827 55%, #0b0b0b 100%)",
-          }}
-        />
+    <section
+      className="rounded-2xl shadow-sm overflow-hidden mt-4 border"
+      style={{
+        // セクション自身に濃い目の背景（白に落ちないように）
+        background:
+          "radial-gradient(1200px 400px at 20% -10%, #4b5563 0%, #111827 55%, #0b0b0b 100%)",
+      }}
+    >
+      <div className="relative h-40 md:h-56">
+        {/* コンテンツ */}
         <div className="absolute inset-0 flex items-center justify-between px-6 md:px-10">
           <div className="text-white drop-shadow-sm">
             <h1 className="text-xl md:text-3xl font-bold">one牌｜AIチャット購入体験 モック</h1>
