@@ -2,7 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Visual tokens ===== */
+/* ====== one牌: visual tokens ====== */
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-neutral-50 text-neutral-900; }
+}
+
 @layer components {
   .card {
     @apply rounded-2xl border bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)];
@@ -26,7 +31,6 @@
   }
 }
 
-/* ===== Utility fine-tunes ===== */
 @layer utilities {
   .container-narrow {
     max-width: min(1024px, 92vw);
