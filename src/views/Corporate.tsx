@@ -1,23 +1,34 @@
-import React from "react";
+import React, { useState } from "react";
 import Card from "../components/Card";
 
-export default function Corporate() {
+const Corporate: React.FC = () => {
+  const [company, setCompany] = useState("");
+  const [name, setName] = useState("");
+  const [mail, setMail] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    alert("送信（ダミー）しました。ありがとうございます。");
+  };
+
   return (
-    <section className="max-w-5xl mx-auto mt-6">
+    <div className="container-narrow py-6 space-y-6">
       <Card title="法人向けお問い合わせ">
-        <p className="text-sm text-neutral-600 mb-3">製作ロット・お見積もり・納期のご相談はこちらから。</p>
-        <form className="grid md:grid-cols-2 gap-2" onSubmit={(e) => e.preventDefault()}>
-          <input className="border rounded px-3 py-2" placeholder="会社名" />
-          <input className="border rounded px-3 py-2" placeholder="ご担当者名" />
-          <input className="border rounded px-3 py-2 md:col-span-2" placeholder="メールアドレス" />
-          <textarea className="border rounded px-3 py-2 md:col-span-2 h-24" placeholder="お問い合わせ内容" />
-          <div className="md:col-span-2 flex justify-end">
-            <button type="button" className="px-4 py-2 rounded-xl bg-black text-white">
-              送信（ダミー）
-            </button>
+        <form className="space-y-3" onSubmit={onSubmit}>
+          <div className="grid md:grid-cols-2 gap-3">
+            <input value={company} onChange={e=>setCompany(e.target.value)} placeholder="会社名" className="border rounded-xl px-3 h-10"/>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="ご担当者名" className="border rounded-xl px-3 h-10"/>
+          </div>
+          <input value={mail} onChange={e=>setMail(e.target.value)} placeholder="メールアドレス" className="border rounded-xl px-3 h-10 w-full"/>
+          <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="お問い合わせ内容" className="border rounded-xl p-3 w-full h-40"/>
+          <div className="text-right">
+            <button className="btn-primary" type="submit">送信</button>
           </div>
         </form>
       </Card>
-    </section>
+    </div>
   );
-}
+};
+
+export default Corporate;
