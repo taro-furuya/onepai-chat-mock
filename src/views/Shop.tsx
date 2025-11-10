@@ -12,11 +12,11 @@ type CartItem = {
   id: string;
   title: string;
   qty: number;
-  unit: number;
-  optionUnit: number;
-  discount: number;
+  unit: number;          // 商品（単価）
+  optionUnit: number;    // 1個あたりのオプション単価（色など per item）
+  discount: number;      // 割引（商品+per item オプションに対して）
   note?: string;
-  extras: { label: string; unit: number }[];
+  extras: { label: string; unit: number }[]; // 明細（単価）
 };
 
 const fmt = (n: number) => new Intl.NumberFormat("ja-JP").format(n);
@@ -28,12 +28,12 @@ const BOTTOM_BAR_HEIGHT = 76;
 const PRICING = {
   shipping: { flat: 390, freeOver: 5000 },
   options: {
-    keyholder: { priceIncl: 300, label: "キーホルダー" },
-    design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
-    design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
-    multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" },
-    kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
+    keyholder: { priceIncl: 300, label: "キーホルダー" },          // 1個あたり（オーダ数量とは独立）
+    design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" }, // per item
+    design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" }, // per set
+    multi_color: { priceIncl: 200, label: "追加色" },              // per item（色数増分）
+    rainbow: { priceIncl: 800, label: "レインボー" },              // per item
+    kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },       // 1個あたり（28mm専用）
     bring_own_color_unit: { priceIncl: 200, label: "持ち込み追加色（1色）" },
   },
   products: {
@@ -116,20 +116,21 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   // 通常牌
   const [regularBack, setRegularBack] = useState<"yellow" | "blue">("yellow");
+  the
   const [regularSuit, setRegularSuit] = useState<"honor" | "manzu" | "souzu" | "pinzu">("honor");
   const [regularNumber, setRegularNumber] = useState(1);
   const [regularHonor, setRegularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
 
-  // 数量
+  // 数量（商品）
   const [qty, setQty] = useState(1);
 
   // 持ち込み
   const [bringOwnColorCount, setBringOwnColorCount] = useState<number>(1);
   const [files, setFiles] = useState<{ id: string; src: string; name: string; type: "image" | "file" }[]>([]);
 
-  // オプション
-  const [optKeyholder, setOptKeyholder] = useState(false);
-  const [optKiribako4, setOptKiribako4] = useState(false);
+  // オプション数量（注文数量とは独立）
+  const [keyholderQty, setKeyholderQty] = useState(0);
+  const [kiribakoQty, setKiribakoQty] = useState(0);
 
   // ミニカート
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -142,20 +143,21 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     setOriginalSub(flow === "fullset" ? "fullset" : "single");
     if (flow === "regular") {
       setVariant("default");
-      if (designType !== "name_print") setDesignType("name_print"); // regularでは影響しないが整合のため
+      if (designType !== "name_print") setDesignType("name_print");
     } else if (variant === "default") {
       setVariant("standard");
     }
   }, [flow]); // eslint-disable-line
 
-  /** ----- 単価・オプション内訳 ----- */
+  /** ----- 単価・オプション（per item）内訳 ----- */
   const productUnit = useMemo(() => {
     const table: any = PRICING.products[flow as keyof typeof PRICING.products];
     const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
     return table.variants[v].priceIncl as number;
   }, [flow, variant]);
 
-  const extraDetails: { label: string; amount: number }[] = useMemo(() => {
+  // per item オプション（色、持ち込みなど）
+  const perItemExtras: { label: string; amount: number }[] = useMemo(() => {
     const out: { label: string; amount: number }[] = [];
     const isFull = flow === "fullset";
     const isSingle = flow === "original_single";
@@ -190,30 +192,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         }
       }
     }
-
-    if (!(flow === "fullset") && optKiribako4) {
-      const ok = (flow === "original_single" && variant === "standard") || flow === "regular";
-      if (ok) out.push({ label: PRICING.options.kiribako_4.label, amount: PRICING.options.kiribako_4.priceIncl });
-    }
-    if (!(flow === "fullset") && optKeyholder) {
-      out.push({ label: PRICING.options.keyholder.label, amount: PRICING.options.keyholder.priceIncl });
-    }
     return out;
-  }, [
-    flow,
-    variant,
-    designType,
-    bringOwnColorCount,
-    useUnifiedColor,
-    unifiedColor,
-    perCharColors,
-    optKeyholder,
-    optKiribako4,
-  ]);
+  }, [flow, designType, bringOwnColorCount, useUnifiedColor, unifiedColor, perCharColors]);
 
-  const optionsUnit = extraDetails.reduce((s, d) => s + d.amount, 0);
+  const optionsPerItemUnit = perItemExtras.reduce((s, d) => s + d.amount, 0);
 
-  /** 割引率 */
+  /** per order オプション（金額は注文全体に対して加算・割引対象外） */
+  const optionsPerOrder = PRICING.options.keyholder.priceIncl * keyholderQty
+    + PRICING.options.kiribako_4.priceIncl * kiribakoQty;
+
+  /** 割引率（カテゴリ注記はカット済み） */
   const discountRate = useMemo(() => {
     if (flow === "original_single") return qty >= 10 ? 0.15 : qty >= 5 ? 0.1 : 0;
     if (flow === "fullset") return qty >= 5 ? 0.2 : 0;
@@ -221,9 +209,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   }, [flow, qty]);
 
   const productSubtotal = productUnit * qty;
-  const optionsSubtotal = optionsUnit * qty;
-  const discountAmount = Math.floor((productSubtotal + optionsSubtotal) * discountRate);
-  const merchandiseSubtotal = productSubtotal + optionsSubtotal - discountAmount;
+  const perItemOptionsSubtotal = optionsPerItemUnit * qty;
+  const discountAmount = Math.floor((productSubtotal + perItemOptionsSubtotal) * discountRate);
+  const merchandiseSubtotal = productSubtotal + perItemOptionsSubtotal - discountAmount + optionsPerOrder;
   const shipping = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
   const total = merchandiseSubtotal + shipping;
 
@@ -258,22 +246,47 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   /** カート */
   const lineTotal = (ci: CartItem) => ci.qty * (ci.unit + ci.optionUnit);
+
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
       title: productTitle,
       qty,
       unit: productUnit,
-      optionUnit: optionsUnit,
+      optionUnit: optionsPerItemUnit,
       discount: discountAmount,
       note,
-      extras: extraDetails.map((d) => ({ label: d.label, unit: d.amount })),
+      extras: [
+        ...perItemExtras.map((d) => ({ label: d.label, unit: d.amount })),
+        ...(keyholderQty > 0 ? [{ label: `${PRICING.options.keyholder.label} × ${keyholderQty}`, unit: PRICING.options.keyholder.priceIncl }] : []),
+        ...(kiribakoQty > 0 ? [{ label: `${PRICING.options.kiribako_4.label} × ${kiribakoQty}`, unit: PRICING.options.kiribako_4.priceIncl }] : []),
+      ],
     };
     setCartItems((prev) => [...prev, item]);
     setMiniCartOpen(true);
     setToast("カートに追加しました");
     setTimeout(() => setToast(null), 1200);
   };
+
+  const removeCartItem = (id: string) => {
+    setCartItems((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      // 空になったら自動で閉じる／送料無料表示も更新される
+      if (next.length === 0) setMiniCartOpen(false);
+      return next;
+    });
+  };
+
+  /** ミニカート集計（送料無料や合計の正確な再計算） */
+  const cartMerchSubtotal = useMemo(() => {
+    const items = cartItems;
+    const perItemSum = items.reduce((s, it) => s + lineTotal(it) - it.discount, 0);
+    // カート内の「per order」系は明細テキストのみ。総額は per item 合算を表示（要件に合わせてここで加算する場合は調整）
+    return perItemSum;
+  }, [cartItems]);
+
+  const cartShipping = cartMerchSubtotal >= PRICING.shipping.freeOver || cartMerchSubtotal === 0 ? 0 : PRICING.shipping.flat;
+  const cartTotal = cartMerchSubtotal + (cartMerchSubtotal === 0 ? 0 : cartShipping);
 
   /** ----------------- UI ----------------- */
   return (
@@ -339,31 +352,21 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </div>
               <div className="mt-3 text-xs text-neutral-600 space-y-1">
                 {flow === "original_single" && (
-                  <>
-                    <div>
-                      発送目安：<b>約2〜3週間</b>
-                    </div>
-                    <div>
-                      割引：<b>5個で10%</b> / <b>10個で15%</b>
-                    </div>
-                  </>
+                  <div>
+                    発送目安：<b>約2〜3週間</b>
+                  </div>
                 )}
                 {flow === "fullset" && (
-                  <>
-                    <div>
-                      発送目安：<b>デザイン確定から2〜3ヶ月</b>
-                    </div>
-                    <div>
-                      割引：<b>5セットで20%</b>
-                    </div>
-                  </>
+                  <div>
+                    発送目安：<b>デザイン確定から2〜3ヶ月</b>
+                  </div>
                 )}
               </div>
             </div>
           )}
         </Card>
 
-        {/* 2. デザイン（★プレビューを右側に固定） */}
+        {/* 2. デザイン（右にプレビュー。横書き時の被りを解消） */}
         {flow === "regular" ? (
           <Card title="2. 牌の選択（通常牌）">
             <div className="grid md:grid-cols-2 gap-6 items-start">
@@ -425,7 +428,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           </Card>
         ) : (
           <Card title="2. デザイン">
-            {/* タブ */}
             <div className="flex flex-wrap gap-2">
               {flow !== "fullset" && (
                 <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
@@ -440,9 +442,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </Pill>
             </div>
 
-            {/* --- 名前入れ：左コントロール／右プレビュー --- */}
             {designType === "name_print" && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_420px] gap-6 items-start">
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_380px] gap-6 items-start">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <label className="w-24">文字</label>
@@ -494,7 +495,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         {COLOR_LIST.map((c) => (
                           <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
                             {renderColorDot(c.css)}
-                            {c.label}
+                            <span className="whitespace-nowrap">{c.label}</span>
                           </Pill>
                         ))}
                       </div>
@@ -515,7 +516,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                                   }}
                                 >
                                   {renderColorDot(c.css)}
-                                  {c.label}
+                                  <span className="whitespace-nowrap">{c.label}</span>
                                 </Pill>
                               ))}
                             </div>
@@ -525,7 +526,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     )}
                   </div>
 
-                  {/* 備考 */}
+                  {/* 備考（広め） */}
                   <div className="flex gap-2 items-start">
                     <label className="w-24 mt-2">備考</label>
                     <textarea
@@ -537,16 +538,18 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   </div>
                 </div>
 
-                {/* 右：プレビュー */}
-                <div className="flex justify-center">
-                  <NameTilePreview
-                    text={text || "麻雀"}
-                    layout={layout}
-                    useUnifiedColor={useUnifiedColor}
-                    unifiedColor={unifiedColor}
-                    perCharColors={perCharColors}
-                    fontKey={fontKey}
-                  />
+                {/* 右：プレビュー（横書き時も被らないよう幅を調整） */}
+                <div className="flex justify-center md:justify-start">
+                  <div className="md:w-[360px] w-full">
+                    <NameTilePreview
+                      text={text || "麻雀"}
+                      layout={layout}
+                      useUnifiedColor={useUnifiedColor}
+                      unifiedColor={unifiedColor}
+                      perCharColors={perCharColors}
+                      fontKey={fontKey}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -554,9 +557,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* デザイン持ち込み */}
             {designType === "bring_own" && (
               <div className="mt-4 space-y-3">
-                <div className="text-xs text-neutral-600">
-                  デザイン持ち込み料（{flow === "fullset" ? "¥5,000" : "¥500"}）は自動で計算されます。
-                </div>
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
                     <div className="text-sm font-medium mb-2">ファイル選択（複数可）</div>
@@ -627,7 +627,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </div>
             )}
 
-            {/* デザイン依頼 */}
             {designType === "commission" && (
               <p className="text-xs text-neutral-600 mt-4">※デザイン料は別途お見積りとなります。</p>
             )}
@@ -646,42 +645,39 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </Pill>
             </div>
 
-            {/* 対応機種（選んだサイズだけ表示） */}
             <details className="mt-3">
               <summary className="cursor-pointer select-none text-sm font-medium">対応機種</summary>
               {variant === "standard" ? (
-                <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
-                  <div>
-                    <div className="font-semibold mb-1">28mm 対応機種</div>
-                    <ul className="list-disc ml-5 space-y-0.5">
-                      <li>AMOS REXX</li>
-                      <li>AMOS REXX2</li>
-                      <li>AMOSアルティマ</li>
-                      <li>AMOSセヴィア</li>
-                      <li>AMOSセヴィアHD</li>
-                      <li>AMOSヴィエラ</li>
-                      <li>AMOSシャルム</li>
-                      <li>AMOSジョイ</li>
-                      <li>AMOSキューブ</li>
-                      <li>AMOSキューブHD</li>
-                      <li>ニンジャB4 HD</li>
-                      <li>ニンジャB4 STANDARD</li>
-                    </ul>
-                    <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
-                  </div>
+                <div className="mt-2 text-xs text-neutral-700">
+                  <div className="font-semibold mb-1">28mm 対応機種</div>
+                  <ul className="list-disc ml-5 space-y-0.5">
+                    <li>AMOS REXX</li>
+                    <li>AMOS REXX2</li>
+                    <li>AMOSアルティマ</li>
+                    <li>AMOSセヴィア</li>
+                    <li>AMOSセヴィアHD</li>
+                    <li>AMOSヴィエラ</li>
+                    <li>AMOSシャルム</li>
+                    <li>AMOSジョイ</li>
+                    <li>AMOSキューブ</li>
+                    <li>AMOSキューブHD</li>
+                    <li>ニンジャB4 HD</li>
+                    <li>ニンジャB4 STANDARD</li>
+                  </ul>
+                  <div className="mt-1 text-red-600">※ AMOS REXX3 は使用不可</div>
+                  <div className="mt-2 text-neutral-600 text-[12px]">背面の色は黄色となります。</div>
                 </div>
               ) : (
-                <div className="mt-2 grid md:grid-cols-2 gap-3 text-xs text-neutral-700">
-                  <div>
-                    <div className="font-semibold mb-1">30mm 対応機種</div>
-                    <ul className="list-disc ml-5 space-y-0.5">
-                      <li>AMOS JP2</li>
-                      <li>AMOS JPEX</li>
-                      <li>AMOS JPCOLOR</li>
-                      <li>AMOS JPDG</li>
-                    </ul>
-                    <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
-                  </div>
+                <div className="mt-2 text-xs text-neutral-700">
+                  <div className="font-semibold mb-1">30mm 対応機種</div>
+                  <ul className="list-disc ml-5 space-y-0.5">
+                    <li>AMOS JP2</li>
+                    <li>AMOS JPEX</li>
+                    <li>AMOS JPCOLOR</li>
+                    <li>AMOS JPDG</li>
+                  </ul>
+                  <p className="text-xs text-neutral-600 mt-1">※上記を含むJPシリーズに対応</p>
+                  <div className="mt-2 text-neutral-600 text-[12px]">背面の色は黄色となります。</div>
                 </div>
               )}
             </details>
@@ -697,46 +693,59 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+                // キーホルダーは注文数量を超えない
+                setKeyholderQty((prev) => Math.min(prev, Math.max(0, Math.floor(v))));
               }}
               className="border rounded px-3 py-2 w-28"
               inputMode="numeric"
               pattern="[0-9]*"
             />
-            <div className="text-xs text-neutral-600">
-              {flow === "original_single" && "※ 5個で10%OFF / 10個で15%OFF"}
-              {flow === "fullset" && "※ 5セットで20%OFF"}
-            </div>
           </div>
         </Card>
 
-        {/* 5. オプション */}
+        {/* 5. オプション（数量指定／注釈の重複は回避） */}
         <Card title="5. オプション">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-3">
-              {flow !== "fullset" && (
-                <label className="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={optKeyholder}
-                    onChange={(e) => setOptKeyholder(e.target.checked)}
-                  />
-                  <span>キーホルダー（+¥{fmt(PRICING.options.keyholder.priceIncl)}）</span>
-                </label>
-              )}
+              <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
+                <span className="min-w-[7em]">キーホルダー</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={qty}
+                  value={keyholderQty}
+                  onChange={(e) => {
+                    const v = Math.max(0, Math.min(qty, Math.floor(Number(e.target.value) || 0)));
+                    setKeyholderQty(v);
+                  }}
+                  className="border rounded px-3 py-1 w-24"
+                />
+                <span className="text-sm text-neutral-600">× ¥{fmt(PRICING.options.keyholder.priceIncl)}</span>
+              </div>
 
               {((flow === "original_single" && variant === "standard") || flow === "regular") && (
-                <label className="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer">
+                <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
+                  <span className="min-w-[7em]">桐箱（4枚用）</span>
                   <input
-                    type="checkbox"
-                    checked={optKiribako4}
-                    onChange={(e) => setOptKiribako4(e.target.checked)}
+                    type="number"
+                    min={0}
+                    value={kiribakoQty}
+                    onChange={(e) => setKiribakoQty(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                    className="border rounded px-3 py-1 w-24"
                   />
-                  <span>桐箱（4枚用 / +¥{fmt(PRICING.options.kiribako_4.priceIncl)}）</span>
-                </label>
+                  <span className="text-sm text-neutral-600">× ¥{fmt(PRICING.options.kiribako_4.priceIncl)}</span>
+                </div>
+              )}
+
+              {/* 桐箱注釈（オプション表示時のみ一度だけ） */}
+              {((flow === "original_single" && variant === "standard") || flow === "regular") && (
+                <p className="text-xs text-neutral-600 ml-2">
+                  ※ 桐箱は4枚用です。28mm専用となります。
+                </p>
               )}
             </div>
 
-            {/* オプション計算に関わる注記だけを表示（明細は見積側に出ます） */}
+            {/* 注記（per item のみ） */}
             <div className="text-xs text-neutral-600">
               <ul className="list-disc ml-5 space-y-1">
                 {designType === "bring_own" && (
@@ -760,12 +769,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                       return add > 0 ? <li>追加色 {add}色：+¥{fmt(PRICING.options.multi_color.priceIncl * add)}</li> : null;
                     })()
                   ))}
+                <li>他の色をご希望の場合は備考欄に記載ください。</li>
               </ul>
             </div>
           </div>
         </Card>
 
-        {/* 6. 見積 */}
+        {/* 6. 見積（前回レイアウト／ボタンは小さめ横長） */}
         <Card title="6. 見積">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -775,19 +785,35 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <td className="py-1 text-neutral-600">商品（単価）</td>
                     <td className="py-1 text-right">¥{fmt(productUnit)}</td>
                   </tr>
-                  {extraDetails.map((d, i) => (
+                  {perItemExtras.map((d, i) => (
                     <tr key={i}>
                       <td className="py-1 text-neutral-600">{d.label}（単価）</td>
                       <td className="py-1 text-right">¥{fmt(d.amount)}</td>
                     </tr>
                   ))}
+                  {keyholderQty > 0 && (
+                    <tr>
+                      <td className="py-1 text-neutral-600">
+                        {PRICING.options.keyholder.label} × {keyholderQty}
+                      </td>
+                      <td className="py-1 text-right">¥{fmt(PRICING.options.keyholder.priceIncl * keyholderQty)}</td>
+                    </tr>
+                  )}
+                  {kiribakoQty > 0 && (
+                    <tr>
+                      <td className="py-1 text-neutral-600">
+                        {PRICING.options.kiribako_4.label} × {kiribakoQty}
+                      </td>
+                      <td className="py-1 text-right">¥{fmt(PRICING.options.kiribako_4.priceIncl * kiribakoQty)}</td>
+                    </tr>
+                  )}
                   <tr>
                     <td className="py-1 text-neutral-600">数量</td>
                     <td className="py-1 text-right">× {qty}</td>
                   </tr>
                   <tr>
-                    <td className="py-1">小計（商品+オプション）</td>
-                    <td className="py-1 text-right">¥{fmt(productSubtotal + optionsSubtotal)}</td>
+                    <td className="py-1">商品+per item オプション小計</td>
+                    <td className="py-1 text-right">¥{fmt(productSubtotal + perItemOptionsSubtotal)}</td>
                   </tr>
                   {discountRate > 0 && (
                     <tr>
@@ -799,7 +825,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   )}
                   <tr>
                     <td className="py-1 font-semibold">小計</td>
-                    <td className="py-1 text-right font-semibold">¥{fmt(merchandiseSubtotal)}</td>
+                    <td className="py-1 text-right font-semibold">¥{fmt(merchandiseSubtotal - shipping)}</td>
                   </tr>
                   <tr>
                     <td className="py-1 text-neutral-600">送料</td>
@@ -814,18 +840,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             </div>
 
             <div className="flex items-end justify-end gap-2">
-              <button
-                type="button"
-                onClick={addToCart}
-                className="btn-ghost"
-              >
+              <button type="button" onClick={addToCart} className="px-5 py-2 rounded-xl border">
                 カートに追加
               </button>
-              <button
-                type="button"
-                onClick={() => setMiniCartOpen(true)}
-                className="btn-primary"
-              >
+              <button type="button" onClick={() => setMiniCartOpen(true)} className="px-5 py-2 rounded-xl bg-black text-white">
                 購入手続きへ
               </button>
             </div>
@@ -833,78 +851,81 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         </Card>
       </section>
 
-      {/* ===== ボトムバー（画面下“全面”、中央寄せ） ===== */}
+      {/* ===== ボトムバー（前回仕様：全幅固定/中央寄せ & アコーディオン風ミニカート） ===== */}
       <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
         <div style={{ ...containerStyle }} className="h-[76px] px-4 flex items-center justify-between">
-          <div className="text-sm">
-            <div className="font-semibold">{productTitle}</div>
-            <div className="text-neutral-600">
-              合計 ¥{fmt(total)}（送料{shipping === 0 ? "0円" : `${fmt(shipping)}円`}）
+          <button
+            type="button"
+            onClick={() => setMiniCartOpen((v) => !v)}
+            className="px-3 py-1 rounded border text-sm"
+          >
+            カート {cartItems.length}件　中身を表示 {miniCartOpen ? "▲" : "▼"}
+          </button>
+
+          <div className="text-sm text-right">
+            <div>
+              小計: ¥{fmt(cartMerchSubtotal)}　送料: {cartShipping === 0 ? "¥0（無料）" : `¥${fmt(cartShipping)}`}
+            </div>
+            <div className="font-semibold">
+              合計: <span className="text-lg">{`¥${fmt(cartTotal)}`}</span>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
-            <button type="button" className="btn-ghost" onClick={addToCart}>
+            <button type="button" className="px-4 py-2 rounded-xl border" onClick={addToCart}>
               カートに追加
             </button>
-            <button type="button" className="btn-primary" onClick={() => setMiniCartOpen(true)}>
+            <button type="button" className="px-5 py-2 rounded-xl bg-black text-white" onClick={() => setMiniCartOpen(true)}>
               購入手続きへ
             </button>
           </div>
         </div>
-      </div>
 
-      {/* ===== ミニカート（ボトムバー“の上”にセンター表示） ===== */}
-      {miniCartOpen && (
-        <div className="fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMiniCartOpen(false)} aria-hidden />
+        {/* アコーディオン：ボトムバー直上／センター */}
+        {miniCartOpen && (
           <div
-            className="absolute w-[min(960px,92vw)] bg-white rounded-2xl shadow-2xl p-4"
-            style={{ left: "50%", transform: "translateX(-50%)", bottom: BOTTOM_BAR_HEIGHT + 12 }}
+            className="w-[min(960px,92vw)] mx-auto bg-white rounded-t-2xl shadow-2xl p-4 border"
+            style={{ marginBottom: 12 }}
           >
-            <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold">カート</div>
-              <button className="px-3 py-1 rounded border" onClick={() => setMiniCartOpen(false)}>
-                閉じる
-              </button>
-            </div>
-
             {cartItems.length === 0 ? (
-              <div className="text-sm text-neutral-600 p-6 text-center">カートは空です。</div>
+              <div className="text-sm text-neutral-600 p-3 text-center">カートは空です。</div>
             ) : (
-              <div className="mt-3 space-y-3">
+              <div className="space-y-3 max-h-[40vh] overflow-auto">
                 {cartItems.map((ci) => (
                   <div key={ci.id} className="border rounded-lg p-3">
-                    <div className="font-medium">{ci.title}</div>
-                    <div className="text-sm text-neutral-600">数量：{ci.qty}</div>
-                    {ci.note && <div className="text-xs text-neutral-600 mt-1">備考：{ci.note}</div>}
-                    {ci.extras.length > 0 && (
-                      <ul className="text-xs list-disc ml-5 mt-1 space-y-1">
-                        {ci.extras.map((e, i) => (
-                          <li key={i}>
-                            {e.label}：¥{fmt(e.unit)}（単価）
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className="text-right text-sm mt-1">小計：¥{fmt(lineTotal(ci))}</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium">{ci.title}</div>
+                        <div className="text-sm text-neutral-600">数量：{ci.qty}</div>
+                        {ci.note && <div className="text-xs text-neutral-600 mt-1">備考：{ci.note}</div>}
+                        {ci.extras.length > 0 && (
+                          <ul className="text-xs list-disc ml-5 mt-1 space-y-1">
+                            {ci.extras.map((e, i) => (
+                              <li key={i}>
+                                {e.label}：¥{fmt(e.unit)}（単価）
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm">小計：¥{fmt(lineTotal(ci))}</div>
+                        {ci.discount > 0 && <div className="text-xs text-rose-600">割引：-¥{fmt(ci.discount)}</div>}
+                        <button
+                          className="mt-2 px-3 py-1 rounded border text-xs"
+                          onClick={() => removeCartItem(ci.id)}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-
-            <div className="mt-3 border-t pt-3 text-right space-y-1">
-              <div className="text-lg font-semibold">
-                合計：¥
-                {fmt(
-                  cartItems.reduce((s, it) => s + lineTotal(it), 0) -
-                    cartItems.reduce((s, it) => s + it.discount, 0)
-                )}
-              </div>
-              <button className="mt-2 px-5 py-2 rounded-xl bg-black text-white">この内容で注文（ダミー）</button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* トースト */}
       {toast && (
