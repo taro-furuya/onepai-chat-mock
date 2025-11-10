@@ -1,35 +1,26 @@
-import React, { useEffect, useState } from "react";
-import Nav, { type View } from "./components/Nav";
+// src/App.tsx
+import React from "react";
 import Shop from "./views/Shop";
 import Guidelines from "./views/Guidelines";
 import Corporate from "./views/Corporate";
 
-export default function App() {
-  const [activeView, setActiveView] = useState<View>(() => {
-    const h = (location.hash || "").replace("#", "");
-    return (["shop", "guidelines", "corporate"] as View[]).includes(h as View) ? (h as View) : "shop";
-  });
+const App: React.FC = () => {
+  const hash = typeof window !== "undefined" ? window.location.hash : "";
 
-  useEffect(() => {
-    const onHash = () => {
-      const h = (location.hash || "").replace("#", "");
-      if ((["shop", "guidelines", "corporate"] as View[]).includes(h as View)) setActiveView(h as View);
-    };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  const goto = (v: View) => {
-    if (location.hash !== `#${v}`) location.hash = v;
-    else setActiveView(v);
+  const gotoCorporate = () => {
+    window.location.hash = "#/corporate";
   };
 
-  return (
-    <div className="min-h-screen bg-neutral-50">
-      <Nav active={activeView} goto={goto} />
-      {activeView === "shop" && <Shop />}
-      {activeView === "guidelines" && <Guidelines />}
-      {activeView === "corporate" && <Corporate />}
-    </div>
-  );
-}
+  const gotoGuidelines = () => {
+    window.location.hash = "#/guidelines";
+  };
+
+  // 簡易ルーティング（ハッシュ）
+  if (hash.startsWith("#/guidelines")) return <Guidelines />;
+  if (hash.startsWith("#/corporate")) return <Corporate />;
+
+  // ★ Shop へ必須の gotoCorporate を渡す
+  return <Shop gotoCorporate={gotoCorporate} />;
+};
+
+export default App;
