@@ -1,3 +1,5 @@
+// 先頭の import 群に追加
+import { computeEstimate, computeCartTotals, PRICING } from "../utils/pricing";
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
