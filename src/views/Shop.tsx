@@ -122,7 +122,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-/** ----- 単価・オプション内訳：共通ロジックに置換 ----- */
+  /** ----- 単価・オプション内訳：共通ロジックに置換 ----- */
   const est = computeEstimate({
     flow,
     variant: flow === "regular" ? "default" : variant,
@@ -133,19 +133,17 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     perCharColors,
     nameText: text,
     bringOwnColorCount,
-    // ▼オプション数量（※あなたの状態名に合わせて）
-    optKeyholderQty: typeof optKeyholderQty === "number" ? optKeyholderQty : (optKeyholder ? qty : 0),
-    optKiribakoQty: typeof optKiribakoQty === "number" ? optKiribakoQty : (optKiribako4 ? 1 : 0),
+    // ▼オプション数量（独立）
+    optKeyholderQty,
+    optKiribakoQty,
   });
 
-  // 以降、既存の変数名に合わせて参照だけ差し替え
+  // 表示・ボトムバーで使う数値（読み替え）
   const productUnit = est.unit;
-  const extraDetails = est.extras;           // 明細行（表示にそのまま使えます）
-  const optionsUnit = est.optionTotal;       // 既存名に合わせて”合計”をマップ
-  const optionsSubtotal = est.optionTotal * qty; // 既存計算を使う箇所向け
+  const extraDetails = est.extras;
+  const optionsSubtotal = est.optionTotal * qty;
   const discountRate = est.discountRate;
   const discountAmount = est.discountAmount;
-  const productSubtotal = est.unit * qty;
   const merchandiseSubtotal = est.merchandiseSubtotal;
   const shipping = est.shipping;
   const total = est.total;
@@ -179,42 +177,48 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   };
   const removeFile = (id: string) => setFiles((prev) => prev.filter((x) => x.id !== id));
 
-  /** カート追加 */
+  /** 小計（各行） */
   const lineTotal = (ci: CartItem) => ci.qty * ci.unit + ci.optionTotal - ci.discount;
-  
-  // 既存の addToCart での生成部分だけ、中身の数値を est 由来に
-  const item: CartItem = {
-    id: cryptoRandom(),
-    title: productTitle,
-    qty,
-    unit: est.unit,
-    optionUnit: est.optionTotal,   // ← optionsUnit ではなく、est 由来をセット
-    discount: est.discountAmount,
-    note,
-    extras: est.extras.map(d => ({ label: d.label, unit: d.amount })),
-  };
-  setCartItems((prev) => [...prev, item]);
-  setMiniCartOpen(true);
-  setToast("カートに追加しました");
-  setTimeout(() => setToast(null), 1200);
-};
-const removeFromCart = (id: string) =>
-  setCartItems((prev) => {
-    const next = prev.filter((x) => x.id !== id);
-    // すべて削除されたら閉じる
-    if (next.length === 0) setMiniCartOpen(false);
-    return next;
-  });
 
-/** ミニカートの合計（送料無料・割引の表示用） */
-const cartTotals = useMemo(() => computeCartTotals(
-  cartItems.map(ci => ({
-    qty: ci.qty,
-    unit: ci.unit,
-    optionTotal: ci.optionUnit ?? 0,
-    discount: ci.discount ?? 0,
-  }))
-), [cartItems]);
+  /** カート追加 */
+  const addToCart = () => {
+    const item: CartItem = {
+      id: cryptoRandom(),
+      title: productTitle,
+      qty,
+      unit: est.unit,
+      optionTotal: est.optionTotal,
+      discount: est.discountAmount,
+      note,
+      extras: est.extras.map((d) => ({ label: d.label, amount: d.amount })),
+    };
+    setCartItems((prev) => [...prev, item]);
+    setMiniCartOpen(true);
+    setToast("カートに追加しました");
+    setTimeout(() => setToast(null), 1200);
+  };
+
+  const removeFromCart = (id: string) =>
+    setCartItems((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      // すべて削除されたら閉じる
+      if (next.length === 0) setMiniCartOpen(false);
+      return next;
+    });
+
+  /** ミニカートの合計（送料無料・割引の表示用） */
+  const cartTotals = useMemo(
+    () =>
+      computeCartTotals(
+        cartItems.map((ci) => ({
+          qty: ci.qty,
+          unit: ci.unit,
+          optionTotal: ci.optionTotal ?? 0,
+          discount: ci.discount ?? 0,
+        }))
+      ),
+    [cartItems]
+  );
 
   /** ----------------- UI ----------------- */
   return (
@@ -281,7 +285,11 @@ const cartTotals = useMemo(() => computeCartTotals(
 
               {/* 納期（選択時のみ表示） */}
               <div className="mt-3 text-xs text-neutral-600 space-y-1">
-                {flow === "original_single" && <div>発送目安：<b>約2〜3週間</b></div>}
+                {flow === "original_single" && (
+                  <div>
+                    発送目安：<b>約2〜3週間</b>
+                  </div>
+                )}
                 {flow === "fullset" && (
                   <div>
                     納期：<b>デザイン確定から2〜3か月</b>
@@ -343,12 +351,7 @@ const cartTotals = useMemo(() => computeCartTotals(
               </div>
 
               <div className="flex justify-center">
-                <RegularTilePreview
-                  back={regularBack}
-                  suit={regularSuit}
-                  number={regularNumber}
-                  honor={regularHonor}
-                />
+                <RegularTilePreview back={regularBack} suit={regularSuit} number={regularNumber} honor={regularHonor} />
               </div>
             </div>
           </Card>
@@ -452,9 +455,7 @@ const cartTotals = useMemo(() => computeCartTotals(
                         ))}
                       </div>
                     )}
-                    <div className="pl-24 text-[12px] text-neutral-500">
-                      ※ 他の色をご希望の場合は備考欄に記載ください。
-                    </div>
+                    <div className="pl-24 text-[12px] text-neutral-500">※ 他の色をご希望の場合は備考欄に記載ください。</div>
                   </div>
 
                   {/* 備考 */}
@@ -469,7 +470,7 @@ const cartTotals = useMemo(() => computeCartTotals(
                   </div>
                 </div>
 
-                {/* プレビュー（右側に固定／重なり防止のため幅を調整） */}
+                {/* プレビュー */}
                 <div className="flex justify-center md:justify-end">
                   <div className="max-w-[460px] md:max-w-[420px]">
                     <NameTilePreview
@@ -694,14 +695,10 @@ const cartTotals = useMemo(() => computeCartTotals(
                       <span>× ¥{fmt(PRICING.options.kiribako_4.priceIncl)}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-neutral-600">
-                    ※ 桐箱は4枚用です。28mm専用となります。
-                  </p>
+                  <p className="text-xs text-neutral-600">※ 桐箱は4枚用です。28mm専用となります。</p>
                 </>
               )}
             </div>
-
-            {/* 右側の注釈は不要とのことなので削除済み */}
           </div>
         </Card>
 
@@ -725,8 +722,6 @@ const cartTotals = useMemo(() => computeCartTotals(
                     <td className="py-1 text-neutral-600">数量</td>
                     <td className="py-1 text-right">× {qty}</td>
                   </tr>
-
-                  {/* 中間小計行は不要なので削除 */}
 
                   {discountRate > 0 && (
                     <tr>
@@ -779,9 +774,7 @@ const cartTotals = useMemo(() => computeCartTotals(
             <div className="font-semibold">{productTitle}</div>
             <div className="text-neutral-600">
               小計 ¥{fmt(merchandiseSubtotal)} ・ 送料 {shipping === 0 ? "¥0（無料）" : `¥${fmt(shipping)}`}{" "}
-              {discountAmount > 0 && (
-                <span className="text-rose-500 ml-2">割引 -¥{fmt(discountAmount)}</span>
-              )}
+              {discountAmount > 0 && <span className="text-rose-500 ml-2">割引 -¥{fmt(discountAmount)}</span>}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -834,10 +827,7 @@ const cartTotals = useMemo(() => computeCartTotals(
                       </div>
                       <div className="text-right">
                         <div className="text-sm">小計：¥{fmt(lineTotal(ci))}</div>
-                        <button
-                          className="mt-2 px-2 py-1 rounded border text-xs"
-                          onClick={() => removeFromCart(ci.id)}
-                        >
+                        <button className="mt-2 px-2 py-1 rounded border text-xs" onClick={() => removeFromCart(ci.id)}>
                           削除
                         </button>
                       </div>
