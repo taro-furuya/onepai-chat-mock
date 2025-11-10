@@ -41,34 +41,41 @@ export default function NameTilePreview(props: {
 }) {
   const { text, layout, useUnifiedColor, unifiedColor, perCharColors, fontKey = "ta-fuga-fude" } = props;
 
-  // Typekit
+  // === Typekit を onload で読み込み（onreadystatechange は使用しない） ===
   useEffect(() => {
-    (function (d: Document) {
-      const config = { kitId: "xew3lay", scriptTimeout: 3000, async: true } as const;
-      const h = d.documentElement;
-      const t = window.setTimeout(() => {
-        h.className = h.className.replace(/\bwf-loading\b/g, "") + " wf-inactive";
-      }, config.scriptTimeout);
-      const tk = d.createElement("script");
-      let f = false as boolean;
-      const s = d.getElementsByTagName("script")[0];
-      let a: string | undefined;
-      h.className += " wf-loading";
-      tk.src = "https://use.typekit.net/" + config.kitId + ".js";
-      (tk as any).async = true;
-      (tk.onload = tk.onreadystatechange = function () {
-        // @ts-ignore
-        a = this.readyState;
-        if (f || (a && a !== "complete" && a !== "loaded")) return;
-        f = true;
-        clearTimeout(t);
-        try {
-          // @ts-ignore
-          (window as any).Typekit.load(config);
-        } catch {}
-      }) as any;
-      s.parentNode?.insertBefore(tk, s);
-    })(document);
+    const d = document;
+    const w = window as any;
+    const config = { kitId: "xew3lay", scriptTimeout: 3000, async: true } as const;
+
+    // すでに Typekit がある場合はロード呼び出しだけ
+    if (w.Typekit) {
+      try {
+        w.Typekit.load({ async: true });
+      } catch {}
+      return;
+    }
+
+    const h = d.documentElement;
+    const timer = window.setTimeout(() => {
+      h.classList.remove("wf-loading");
+      h.classList.add("wf-inactive");
+    }, config.scriptTimeout);
+
+    const firstScript = d.getElementsByTagName("script")[0];
+    const tk = d.createElement("script");
+
+    h.classList.add("wf-loading");
+    tk.src = `https://use.typekit.net/${config.kitId}.js`;
+    tk.async = true;
+
+    tk.onload = () => {
+      clearTimeout(timer);
+      try {
+        w.Typekit?.load(config);
+      } catch {}
+    };
+
+    firstScript.parentNode?.insertBefore(tk, firstScript);
   }, []);
 
   const chars = useMemo(() => Array.from(text || ""), [text]);
