@@ -122,44 +122,30 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-  /** ---- 金額計算（共通ロジック） ---- */
-  const est = useMemo(
-    () =>
-      computeEstimate({
-        flow,
-        variant: flow === "regular" ? "default" : variant,
-        qty,
-        designType,
-        useUnifiedColor,
-        unifiedColor,
-        perCharColors,
-        nameText: text,
-        bringOwnColorCount,
-        // ▼オプション数量（数値の state が無い場合は boolean → 数量に変換）
-        optKeyholderQty: typeof optKeyholder === "boolean" ? (optKeyholder ? 1 : 0) : (optKeyholder as any) || 0,
-        optKiribakoQty: typeof optKiribako4 === "boolean" ? (optKiribako4 ? 1 : 0) : (optKiribako4 as any) || 0,
-      }),
-    [
-      flow,
-      variant,
-      qty,
-      designType,
-      useUnifiedColor,
-      unifiedColor,
-      perCharColors,
-      text,
-      bringOwnColorCount,
-      optKeyholder,
-      optKiribako4,
-    ]
-  );
+/** ----- 単価・オプション内訳：共通ロジックに置換 ----- */
+  const est = computeEstimate({
+    flow,
+    variant: flow === "regular" ? "default" : variant,
+    qty,
+    designType,
+    useUnifiedColor,
+    unifiedColor,
+    perCharColors,
+    nameText: text,
+    bringOwnColorCount,
+    // ▼オプション数量（※あなたの状態名に合わせて）
+    optKeyholderQty: typeof optKeyholderQty === "number" ? optKeyholderQty : (optKeyholder ? qty : 0),
+    optKiribakoQty: typeof optKiribakoQty === "number" ? optKiribakoQty : (optKiribako4 ? 1 : 0),
+  });
 
-  // 以降、既存の変数名に合わせて展開（JSXは書き換え不要）
+  // 以降、既存の変数名に合わせて参照だけ差し替え
   const productUnit = est.unit;
-  const extraDetails = est.extras;            // 明細行（ラベル＋金額）
-  const optionsUnit = est.optionTotal;        // 既存が optionUnit ならこの名前でOK
+  const extraDetails = est.extras;           // 明細行（表示にそのまま使えます）
+  const optionsUnit = est.optionTotal;       // 既存名に合わせて”合計”をマップ
+  const optionsSubtotal = est.optionTotal * qty; // 既存計算を使う箇所向け
   const discountRate = est.discountRate;
   const discountAmount = est.discountAmount;
+  const productSubtotal = est.unit * qty;
   const merchandiseSubtotal = est.merchandiseSubtotal;
   const shipping = est.shipping;
   const total = est.total;
@@ -195,36 +181,37 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   /** カート追加 */
   const lineTotal = (ci: CartItem) => ci.qty * ci.unit + ci.optionTotal - ci.discount;
+  
+  // 既存の addToCart での生成部分だけ、中身の数値を est 由来に
   const item: CartItem = {
-    id: cryptoRandom(),            // ← 既存のまま
-    title: productTitle,           // ← 既存のまま
+    id: cryptoRandom(),
+    title: productTitle,
     qty,
-    unit: productUnit,             // or est.unit
-    optionUnit: optionsUnit,       // ← 既存が optionUnit ならそのまま。中身は est.optionTotal
-    discount: discountAmount,      // ← est.discountAmount
+    unit: est.unit,
+    optionUnit: est.optionTotal,   // ← optionsUnit ではなく、est 由来をセット
+    discount: est.discountAmount,
     note,
-    extras: extraDetails.map(d => ({ label: d.label, unit: d.amount })), // 既存形式に合わせて
-    };
-    setCartItems((prev) => [...prev, item]);
-    setMiniCartOpen(true);
-    setToast("カートに追加しました");
-    setTimeout(() => setToast(null), 1200);
+    extras: est.extras.map(d => ({ label: d.label, unit: d.amount })),
   };
-  const removeFromCart = (id: string) =>
-    setCartItems((prev) => {
-      const next = prev.filter((x) => x.id !== id);
-      // すべて削除されたら閉じる
-      if (next.length === 0) setMiniCartOpen(false);
-      return next;
-    });
+  setCartItems((prev) => [...prev, item]);
+  setMiniCartOpen(true);
+  setToast("カートに追加しました");
+  setTimeout(() => setToast(null), 1200);
+};
+const removeFromCart = (id: string) =>
+  setCartItems((prev) => {
+    const next = prev.filter((x) => x.id !== id);
+    // すべて削除されたら閉じる
+    if (next.length === 0) setMiniCartOpen(false);
+    return next;
+  });
 
-  /** ミニカートの合計（送料無料・割引の表示用） */
+/** ミニカートの合計（送料無料・割引の表示用） */
 const cartTotals = useMemo(() => computeCartTotals(
-  // CartItem の形に合わせて必要なら map してください
   cartItems.map(ci => ({
     qty: ci.qty,
     unit: ci.unit,
-    optionTotal: (ci as any).optionUnit ?? 0, // 既存名が optionUnit の想定
+    optionTotal: ci.optionUnit ?? 0,
     discount: ci.discount ?? 0,
   }))
 ), [cartItems]);
