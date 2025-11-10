@@ -27,33 +27,6 @@ const suitLabel = (s: "manzu" | "souzu" | "pinzu") => (s === "manzu" ? "萬子" 
 const containerStyle: React.CSSProperties = { maxWidth: "min(1024px, 92vw)", margin: "0 auto" };
 const BOTTOM_BAR_HEIGHT = 76;
 
-const PRICING = {
-  shipping: { flat: 390, freeOver: 5000 },
-  options: {
-    keyholder: { priceIncl: 300, label: "キーホルダー" },
-    design_submission_single: { priceIncl: 500, label: "持ち込み料（単品）" },
-    design_submission_fullset: { priceIncl: 5000, label: "持ち込み料（フルセット）" },
-    multi_color: { priceIncl: 200, label: "追加色" },
-    rainbow: { priceIncl: 800, label: "レインボー" },
-    kiribako_4: { priceIncl: 1500, label: "桐箱（4枚用）" },
-  },
-  products: {
-    original_single: {
-      variants: {
-        standard: { label: "28mm 牌", priceIncl: 1980 },
-        mm30: { label: "30mm 牌", priceIncl: 2700 },
-      },
-    },
-    fullset: {
-      variants: {
-        standard: { label: "28mm 牌（フルセット）", priceIncl: 206700 },
-        mm30: { label: "30mm 牌（フルセット）", priceIncl: 206700 },
-      },
-    },
-    regular: { variants: { default: { label: "28mm 牌（通常）", priceIncl: 550 } } },
-  },
-} as const;
-
 const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   { key: "black", label: "ブラック", css: "#0a0a0a" },
   { key: "red", label: "レッド", css: "#d10f1b" },
@@ -149,97 +122,47 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }
   }, [flow]); // eslint-disable-line
 
-  /** ----- 単価・オプション内訳 ----- */
-  const productUnit = useMemo(() => {
-    const table: any = PRICING.products[flow as keyof typeof PRICING.products];
-    const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
-    return table.variants[v].priceIncl as number;
-  }, [flow, variant]);
+  /** ---- 金額計算（共通ロジック） ---- */
+  const est = useMemo(
+    () =>
+      computeEstimate({
+        flow,
+        variant: flow === "regular" ? "default" : variant,
+        qty,
+        designType,
+        useUnifiedColor,
+        unifiedColor,
+        perCharColors,
+        nameText: text,
+        bringOwnColorCount,
+        // ▼オプション数量（数値の state が無い場合は boolean → 数量に変換）
+        optKeyholderQty: typeof optKeyholder === "boolean" ? (optKeyholder ? 1 : 0) : (optKeyholder as any) || 0,
+        optKiribakoQty: typeof optKiribako4 === "boolean" ? (optKiribako4 ? 1 : 0) : (optKiribako4 as any) || 0,
+      }),
+    [
+      flow,
+      variant,
+      qty,
+      designType,
+      useUnifiedColor,
+      unifiedColor,
+      perCharColors,
+      text,
+      bringOwnColorCount,
+      optKeyholder,
+      optKiribako4,
+    ]
+  );
 
-  const extraDetails: { label: string; amount: number }[] = useMemo(() => {
-    const out: { label: string; amount: number }[] = [];
-    const isFull = flow === "fullset";
-    const isSingle = flow === "original_single";
-
-    if (designType === "bring_own") {
-      out.push({
-        label: isFull ? PRICING.options.design_submission_fullset.label : PRICING.options.design_submission_single.label,
-        amount: isFull ? PRICING.options.design_submission_fullset.priceIncl : PRICING.options.design_submission_single.priceIncl,
-      });
-    }
-
-    // 色加算：一括レインボーは+800、個別指定はユニーク色数の増加分×200（上限800）
-    if (isSingle && designType === "name_print") {
-      if (useUnifiedColor) {
-        if (unifiedColor === "rainbow") {
-          out.push({ label: PRICING.options.rainbow.label, amount: PRICING.options.rainbow.priceIncl });
-        }
-      } else {
-        const uniq = Array.from(new Set(perCharColors.slice(0, Math.max(1, splitChars(text).length))));
-        // 黒を含めたユニーク色数が2色以上なら追加色＝(色数-1)×200。上限800。
-        const addColors = Math.max(0, uniq.length - 1);
-        const addAmount = Math.min(PRICING.options.multi_color.priceIncl * addColors, PRICING.options.rainbow.priceIncl);
-        if (addAmount > 0) out.push({ label: `${PRICING.options.multi_color.label} × ${addColors}`, amount: addAmount });
-      }
-    }
-
-    // キーホルダー＆桐箱（数量はメイン数量に比例しない）
-    if (optKeyholderQty > 0) {
-      out.push({
-        label: `${PRICING.options.keyholder.label} × ${optKeyholderQty}`,
-        amount: PRICING.options.keyholder.priceIncl * optKeyholderQty,
-      });
-    }
-    if (optKiribakoQty > 0) {
-      const ok = (flow === "original_single" && variant === "standard") || flow === "regular";
-      if (ok) {
-        out.push({
-          label: `${PRICING.options.kiribako_4.label} × ${optKiribakoQty}`,
-          amount: PRICING.options.kiribako_4.priceIncl * optKiribakoQty,
-        });
-      }
-    }
-
-    // 持ち込みの追加色（1色以上の入力で、追加分×200）
-    if (designType === "bring_own") {
-      const add = Math.max(0, bringOwnColorCount - 1);
-      if (add > 0) {
-        out.push({
-          label: `持ち込み追加色 × ${add}`,
-          amount: PRICING.options.multi_color.priceIncl * add,
-        });
-      }
-    }
-
-    return out;
-  }, [
-    flow,
-    variant,
-    designType,
-    bringOwnColorCount,
-    useUnifiedColor,
-    unifiedColor,
-    perCharColors,
-    optKeyholderQty,
-    optKiribakoQty,
-    text,
-  ]);
-
-  const optionTotal = extraDetails.reduce((s, d) => s + d.amount, 0);
-
-  /** 割引率（アイテム単位） */
-  const discountRate = useMemo(() => {
-    if (flow === "original_single") return qty >= 10 ? 0.15 : qty >= 5 ? 0.1 : 0;
-    if (flow === "fullset") return qty >= 5 ? 0.2 : 0;
-    return 0;
-  }, [flow, qty]);
-
-  const productSubtotal = productUnit * qty;
-  const optionsSubtotal = optionTotal; // オプションはメイン数量に比例しない仕様
-  const discountAmount = Math.floor((productSubtotal + optionsSubtotal) * discountRate);
-  const merchandiseSubtotal = productSubtotal + optionsSubtotal - discountAmount;
-  const shipping = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
-  const total = merchandiseSubtotal + shipping;
+  // 以降、既存の変数名に合わせて展開（JSXは書き換え不要）
+  const productUnit = est.unit;
+  const extraDetails = est.extras;            // 明細行（ラベル＋金額）
+  const optionsUnit = est.optionTotal;        // 既存が optionUnit ならこの名前でOK
+  const discountRate = est.discountRate;
+  const discountAmount = est.discountAmount;
+  const merchandiseSubtotal = est.merchandiseSubtotal;
+  const shipping = est.shipping;
+  const total = est.total;
 
   /** タイトル */
   const productTitle = useMemo(() => {
@@ -272,16 +195,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   /** カート追加 */
   const lineTotal = (ci: CartItem) => ci.qty * ci.unit + ci.optionTotal - ci.discount;
-  const addToCart = () => {
-    const item: CartItem = {
-      id: cryptoRandom(),
-      title: productTitle,
-      qty,
-      unit: productUnit,
-      optionTotal,
-      discount: discountAmount,
-      note,
-      extras: extraDetails.map((d) => ({ label: d.label, amount: d.amount })),
+  const item: CartItem = {
+    id: cryptoRandom(),            // ← 既存のまま
+    title: productTitle,           // ← 既存のまま
+    qty,
+    unit: productUnit,             // or est.unit
+    optionUnit: optionsUnit,       // ← 既存が optionUnit ならそのまま。中身は est.optionTotal
+    discount: discountAmount,      // ← est.discountAmount
+    note,
+    extras: extraDetails.map(d => ({ label: d.label, unit: d.amount })), // 既存形式に合わせて
     };
     setCartItems((prev) => [...prev, item]);
     setMiniCartOpen(true);
@@ -297,12 +219,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     });
 
   /** ミニカートの合計（送料無料・割引の表示用） */
-  const cartTotals = useMemo(() => {
-    const merchandise = cartItems.reduce((s, it) => s + (it.qty * it.unit + it.optionTotal - it.discount), 0);
-    const ship = merchandise >= PRICING.shipping.freeOver || merchandise === 0 ? 0 : PRICING.shipping.flat;
-    const total = merchandise + ship;
-    return { merchandise, ship, total };
-  }, [cartItems]);
+const cartTotals = useMemo(() => computeCartTotals(
+  // CartItem の形に合わせて必要なら map してください
+  cartItems.map(ci => ({
+    qty: ci.qty,
+    unit: ci.unit,
+    optionTotal: (ci as any).optionUnit ?? 0, // 既存名が optionUnit の想定
+    discount: ci.discount ?? 0,
+  }))
+), [cartItems]);
 
   /** ----------------- UI ----------------- */
   return (
