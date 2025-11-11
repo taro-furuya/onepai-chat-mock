@@ -4,19 +4,18 @@ import Pill from "../components/Pill";
 import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview";
 import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
-import { computeEstimate, computeCartTotals, PRICING } from "../utils/pricing";
+import { computeEstimate, computeCartTotals, PRICING, type Flow } from "../utils/pricing";
 
 /** ----------------- 型・定数 ----------------- */
-type Flow = "original_single" | "fullset" | "regular";
 type FontKey = "ta-fuga-fude" | "gothic" | "mincho";
 
 type CartItem = {
   id: string;
+  flow: Flow;
   title: string;
   qty: number;
   unit: number;          // 商品の単価
-  optionTotal: number;   // そのアイテムに紐づくオプション合計（数量連動しないが、見積では qty 掛け）
-  discount: number;      // アイテムにかかった割引額
+  optionTotal: number;   // そのアイテムに紐づくオプション合計（単価）
   note?: string;
   extras: { label: string; amount: number }[]; // オプション明細（単価×数まで展開済み）
   designSummary?: string;                      // デザインの要約
@@ -200,18 +199,18 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     return "デザイン依頼（別途お見積り）";
   };
 
-  /** カート計算ヘルパ */
-  const lineTotal = (ci: CartItem) => ci.qty * ci.unit + ci.qty * ci.optionTotal - ci.discount;
+  /** カート計算ヘルパ（各アイテムの小計：割引はここでは引かない） */
+  const lineTotal = (ci: CartItem) => ci.qty * ci.unit + ci.qty * ci.optionTotal;
 
   /** カート追加 */
   const addToCart = () => {
     const item: CartItem = {
       id: cryptoRandom(),
+      flow,
       title: productTitle,
       qty,
       unit: est.unit,
       optionTotal: est.optionTotal,
-      discount: est.discountAmount,
       note,
       extras: est.extras.map((d) => ({ label: d.label, amount: d.amount })),
       designSummary: buildDesignSummary(),
@@ -230,15 +229,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       return next;
     });
 
-  /** ミニカート（全体合計） */
+  /** ミニカート（全体合計：累計割引対応） */
   const cartTotals = useMemo(
     () =>
       computeCartTotals(
         cartItems.map((ci) => ({
+          flow: ci.flow,
           qty: ci.qty,
           unit: ci.unit,
           optionTotal: ci.optionTotal ?? 0,
-          discount: ci.discount ?? 0,
         }))
       ),
     [cartItems]
@@ -337,30 +336,21 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <div className="flex items-center gap-2">
                     <label className="w-24">字牌</label>
                     {["東", "南", "西", "北", "白", "發", "中"].map((h) => (
-                      <Pill key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>
-                        {h}
-                      </Pill>
+                      <Pill key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>{h}</Pill>
                     ))}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <label className="w-24">数字</label>
                     {Array.from({ length: 9 }).map((_, i) => (
-                      <Pill key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>
-                        {i + 1}
-                      </Pill>
+                      <Pill key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>{i + 1}</Pill>
                     ))}
                   </div>
                 )}
               </div>
 
               <div className="flex justify-center">
-                <RegularTilePreview
-                  back={regularBack}
-                  suit={regularSuit}
-                  number={regularNumber}
-                  honor={regularHonor}
-                />
+                <RegularTilePreview back={regularBack} suit={regularSuit} number={regularNumber} honor={regularHonor} />
               </div>
             </div>
           </Card>
@@ -369,16 +359,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* デザイン方式 */}
             <div className="flex flex-wrap gap-2">
               {flow !== "fullset" && (
-                <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
-                  名前入れ
-                </Pill>
+                <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>名前入れ</Pill>
               )}
-              <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>
-                デザイン持ち込み
-              </Pill>
-              <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>
-                デザイン依頼
-              </Pill>
+              <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>デザイン持ち込み</Pill>
+              <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>デザイン依頼</Pill>
             </div>
 
             {/* 名前入れ */}
@@ -778,12 +762,19 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </button>
               <button
                 type="button"
-                className="px-5 py-2 rounded-xl bg-black text-white"
+                className="px-5 py-2 rounded-xl bg-white border"
                 onClick={() => setMiniCartOpen((v) => !v)}
                 aria-expanded={miniCartOpen}
                 aria-controls="cart-accordion"
               >
                 {miniCartOpen ? "カートを閉じる" : "カートを表示"}
+              </button>
+              <button
+                type="button"
+                className="px-5 py-2 rounded-xl bg-black text-white"
+                onClick={() => setMiniCartOpen(true)}
+              >
+                購入手続きへ
               </button>
             </div>
           </div>
