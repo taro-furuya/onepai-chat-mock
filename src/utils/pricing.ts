@@ -1,3 +1,4 @@
+// 共通の価格表
 export const PRICING = {
   shipping: { flat: 390, freeOver: 5000 },
   options: {
@@ -27,45 +28,106 @@ export const PRICING = {
 } as const;
 
 type Flow = "original_single" | "fullset" | "regular";
-type Variant = "standard" | "mm30" | "default";
 type DesignType = "name_print" | "bring_own" | "commission";
-export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
+type Variant = "standard" | "mm30" | "default";
+type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
 
-type EstimateInput = {
+export type EstimateInput = {
   flow: Flow;
   variant: Variant;
   qty: number;
-
   designType: DesignType;
   useUnifiedColor: boolean;
   unifiedColor: ColorKey;
   perCharColors: ColorKey[];
   nameText: string;
   bringOwnColorCount: number;
-
+  // 独立オプション数量
   optKeyholderQty: number;
   optKiribakoQty: number;
 };
 
-type ExtraRow = { label: string; amount: number };
-
 export type Estimate = {
-  unit: number;
-  extras: ExtraRow[];
-  optionTotal: number;           // このラインアイテム全体のオプション合計（qty分含む）
+  unit: number;                 // 商品単価
+  extras: { label: string; amount: number }[]; // 表示用の明細（単価行）
+  optionTotal: number;          // オプション小計（この行の「単価」合計）
   discountRate: number;
-  discountAmount: number;        // このラインアイテムにかかった割引額
-  merchandiseSubtotal: number;   // 小計＝(商品×qty + optionTotal - 割引)
+  discountAmount: number;       // （商品＋オプション）×qty に対する割引額
+  merchandiseSubtotal: number;  // 割引後小計（税・送料別）
   shipping: number;
-  total: number;
+  total: number;                // 合計（小計＋送料）
 };
 
-// ユニーク色（文字数に合わせて切り詰め）
-function uniqueColors(perCharColors: ColorKey[], nameText: string): Set<ColorKey> {
+function getUnit(flow: Flow, variant: Variant): number {
+  const table: any = PRICING.products[flow];
+  const v = flow === "regular" ? "default" : variant === "default" ? "standard" : variant;
+  return table.variants[v].priceIncl as number;
+}
+
+/** 色数課金ロジック（ご指定の要件）
+ * - 一括指定：レインボーなら 800、それ以外は 0
+ * - 個別指定：レインボーが1色でも含まれていれば 800（上限）
+ *              含まれない場合、ユニーク色数が2色以上なら (色数-1)*200（上限800）
+ *   ※ ユニーク1色（黒以外1色のみでも）0円
+ */
+function colorSurcharge(params: {
+  flow: Flow;
+  designType: DesignType;
+  useUnifiedColor: boolean;
+  unifiedColor: ColorKey;
+  perCharColors: ColorKey[];
+  nameText: string;
+}): { label: string; amount: number } | null {
+  const { flow, designType, useUnifiedColor, unifiedColor, perCharColors, nameText } = params;
+  if (flow !== "original_single") return null;
+  if (designType !== "name_print") return null;
+
+  if (useUnifiedColor) {
+    if (unifiedColor === "rainbow") {
+      return { label: PRICING.options.rainbow.label, amount: PRICING.options.rainbow.priceIncl };
+    }
+    return null; // 一括指定は黒以外でも1色なら0円
+  }
+
+  // 個別指定：入力文字数に揃える
   const need = Math.max(1, Array.from(nameText || "").length);
-  const arr = perCharColors.slice(0, need);
-  while (arr.length < need) arr.push("black");
-  return new Set(arr);
+  const colors = perCharColors.slice(0, need);
+  while (colors.length < need) colors.push("black");
+
+  const uniq = Array.from(new Set(colors));
+  if (uniq.includes("rainbow")) {
+    return { label: PRICING.options.rainbow.label, amount: PRICING.options.rainbow.priceIncl };
+  }
+
+  const uniqueCount = uniq.length;
+  if (uniqueCount <= 1) return null; // 1色なら0円（黒以外1色でも0円）
+
+  const raw = (uniqueCount - 1) * PRICING.options.multi_color.priceIncl;
+  const capped = Math.min(PRICING.options.rainbow.priceIncl, raw); // 上限800
+  return { label: `${PRICING.options.multi_color.label} × ${uniqueCount - 1}`, amount: capped };
+}
+
+function designBringOwnSurcharge(flow: Flow, bringOwnColorCount: number): { label: string; amount: number }[] {
+  const out: { label: string; amount: number }[] = [];
+  const addCount = Math.max(0, Math.floor(bringOwnColorCount) - 1);
+  if (flow === "fullset") {
+    out.push({
+      label: PRICING.options.design_submission_fullset.label,
+      amount: PRICING.options.design_submission_fullset.priceIncl,
+    });
+  } else {
+    out.push({
+      label: PRICING.options.design_submission_single.label,
+      amount: PRICING.options.design_submission_single.priceIncl,
+    });
+    if (addCount > 0) {
+      out.push({
+        label: `${PRICING.options.bring_own_color_unit.label} × ${addCount}`,
+        amount: PRICING.options.bring_own_color_unit.priceIncl * addCount,
+      });
+    }
+  }
+  return out;
 }
 
 function discountRateOf(flow: Flow, qty: number): number {
@@ -76,105 +138,93 @@ function discountRateOf(flow: Flow, qty: number): number {
 
 export function computeEstimate(input: EstimateInput): Estimate {
   const {
-    flow, variant, qty,
+    flow,
+    variant,
+    qty,
     designType,
-    useUnifiedColor, unifiedColor, perCharColors, nameText, bringOwnColorCount,
-    optKeyholderQty, optKiribakoQty,
+    useUnifiedColor,
+    unifiedColor,
+    perCharColors,
+    nameText,
+    bringOwnColorCount,
+    optKeyholderQty,
+    optKiribakoQty,
   } = input;
 
-  const v: Variant = flow === "regular" ? "default" : (variant === "default" ? "standard" : variant);
-  const unit = (PRICING.products as any)[flow].variants[v].priceIncl as number;
+  const unit = getUnit(flow, variant);
 
-  const extras: ExtraRow[] = [];
-  let optionTotal = 0;
+  // 明細（単価行）
+  const extras: { label: string; amount: number }[] = [];
 
-  // ---- デザイン（色課金・持ち込み） ----
-  if (flow === "original_single") {
-    if (designType === "name_print") {
-      // ◆レインボーを含めば800円（上限800円/枚）
-      // 一括指定：rainbow=800円、黒以外1色でも0円
-      // 個別指定：ユニーク色数（黒含む）2色以上で(色数-1)*200、rainbow含めば800円、上限800円
-      let colorFeePerPiece = 0;
-
-      if (useUnifiedColor) {
-        colorFeePerPiece = unifiedColor === "rainbow" ? PRICING.options.rainbow.priceIncl : 0;
-      } else {
-        const uniq = uniqueColors(perCharColors, nameText);
-        const hasRainbow = uniq.has("rainbow");
-        if (hasRainbow) {
-          colorFeePerPiece = PRICING.options.rainbow.priceIncl; // 800
-        } else {
-          const count = uniq.size;
-          const addSteps = Math.max(0, count - 1); // 黒含め2色以上で加算
-          colorFeePerPiece = Math.min(addSteps * PRICING.options.multi_color.priceIncl, PRICING.options.rainbow.priceIncl);
-        }
-      }
-
-      if (colorFeePerPiece > 0) {
-        optionTotal += colorFeePerPiece * qty;
-        extras.push({
-          label: colorFeePerPiece === PRICING.options.rainbow.priceIncl ? PRICING.options.rainbow.label : PRICING.options.multi_color.label,
-          amount: colorFeePerPiece
-        });
-      }
-    }
-
-    if (designType === "bring_own") {
-      extras.push({ label: PRICING.options.design_submission_single.label, amount: PRICING.options.design_submission_single.priceIncl });
-      optionTotal += PRICING.options.design_submission_single.priceIncl * qty;
-      const add = Math.max(0, bringOwnColorCount - 1);
-      if (add > 0) {
-        const addFee = PRICING.options.bring_own_color_unit.priceIncl * add;
-        extras.push({ label: `${PRICING.options.bring_own_color_unit.label} × ${add}`, amount: addFee });
-        optionTotal += addFee * qty;
-      }
-    }
-  } else if (flow === "fullset") {
-    if (designType === "bring_own") {
-      extras.push({ label: PRICING.options.design_submission_fullset.label, amount: PRICING.options.design_submission_fullset.priceIncl });
-      optionTotal += PRICING.options.design_submission_fullset.priceIncl * qty;
-      const add = Math.max(0, bringOwnColorCount - 1);
-      if (add > 0) {
-        const addFee = PRICING.options.bring_own_color_unit.priceIncl * add;
-        extras.push({ label: `${PRICING.options.bring_own_color_unit.label} × ${add}`, amount: addFee });
-        optionTotal += addFee * qty;
-      }
-    }
+  // デザイン系
+  if (designType === "bring_own") {
+    extras.push(...designBringOwnSurcharge(flow, bringOwnColorCount));
+  } else if (designType === "name_print") {
+    const colorExtra = colorSurcharge({
+      flow,
+      designType,
+      useUnifiedColor,
+      unifiedColor,
+      perCharColors,
+      nameText,
+    });
+    if (colorExtra) extras.push(colorExtra);
   }
 
-  // ---- 物理オプション（独立数量） ----
+  // 独立オプション（メイン数量に比例しない）
   if (optKeyholderQty > 0) {
-    const fee = PRICING.options.keyholder.priceIncl * optKeyholderQty;
-    extras.push({ label: `${PRICING.options.keyholder.label} × ${optKeyholderQty}`, amount: PRICING.options.keyholder.priceIncl });
-    optionTotal += fee;
+    extras.push({
+      label: `${PRICING.options.keyholder.label} × ${optKeyholderQty}`,
+      amount: PRICING.options.keyholder.priceIncl * optKeyholderQty,
+    });
   }
   if (optKiribakoQty > 0) {
-    const fee = PRICING.options.kiribako_4.priceIncl * optKiribakoQty;
-    extras.push({ label: `${PRICING.options.kiribako_4.label} × ${optKiribakoQty}`, amount: PRICING.options.kiribako_4.priceIncl });
-    optionTotal += fee;
+    extras.push({
+      label: `${PRICING.options.kiribako_4.label} × ${optKiribakoQty}`,
+      amount: PRICING.options.kiribako_4.priceIncl * optKiribakoQty,
+    });
   }
 
-  // 割引（行単位）
-  const discountRate = discountRateOf(flow, qty);
+  const optionTotal = extras.reduce((s, d) => s + d.amount, 0);
+
+  // 小計・割引（既存UI互換：オプションも qty に連動）
   const productSubtotal = unit * qty;
-  const preDiscount = productSubtotal + optionTotal;      // ★割引前小計（小計として表示したい値）
-  const discountAmount = Math.floor(preDiscount * discountRate);
+  const optionsSubtotal = optionTotal * qty;
+  const preDiscount = productSubtotal + optionsSubtotal;
+  const rate = discountRateOf(flow, qty);
+  const discountAmount = Math.floor(preDiscount * rate);
   const merchandiseSubtotal = preDiscount - discountAmount;
 
+  // 送料
   const shipping = merchandiseSubtotal >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
   const total = merchandiseSubtotal + shipping;
 
-  return { unit, extras, optionTotal, discountRate, discountAmount, merchandiseSubtotal, shipping, total };
+  return {
+    unit,
+    extras,
+    optionTotal,
+    discountRate: rate,
+    discountAmount,
+    merchandiseSubtotal,
+    shipping,
+    total,
+  };
 }
 
-// ★カート合計：小計（割引前）、割引、送料、合計
-export function computeCartTotals(
-  items: { qty: number; unit: number; optionTotal: number; discount: number }[]
-): { preMerch: number; ship: number; discount: number; total: number } {
-  const preMerch = items.reduce((s, it) => s + it.qty * it.unit + it.optionTotal, 0); // 割引前小計
-  const discount = items.reduce((s, it) => s + it.discount, 0);
-  const afterDiscount = preMerch - discount;
-  const ship = afterDiscount >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
-  const total = afterDiscount + ship;
-  return { preMerch, ship, discount, total };
+/** カート全体の合計（小計・送料・割引・合計） */
+export function computeCartTotals(items: Array<{ qty: number; unit: number; optionTotal: number; discount: number }>) {
+  const preDiscount = items.reduce(
+    (s, it) => s + it.qty * it.unit + it.qty * (it.optionTotal ?? 0),
+    0
+  );
+  const discount = items.reduce((s, it) => s + (it.discount ?? 0), 0);
+  const merchandise = preDiscount - discount;
+  const ship = merchandise >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
+  return {
+    preDiscount,   // 割引前の小計（商品+オプション）
+    discount,      // 割引合計
+    merchandise,   // 割引後小計
+    ship,
+    total: merchandise + ship,
+  };
 }
