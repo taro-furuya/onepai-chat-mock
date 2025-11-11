@@ -27,7 +27,7 @@ export const PRICING = {
   },
 } as const;
 
-type Flow = "original_single" | "fullset" | "regular";
+export type Flow = "original_single" | "fullset" | "regular";
 type DesignType = "name_print" | "bring_own" | "commission";
 type Variant = "standard" | "mm30" | "default";
 type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
@@ -52,7 +52,7 @@ export type Estimate = {
   extras: { label: string; amount: number }[]; // 表示用の明細（単価行）
   optionTotal: number;          // オプション小計（この行の「単価」合計）
   discountRate: number;
-  discountAmount: number;       // （商品＋オプション）×qty に対する割引額
+  discountAmount: number;       // （商品＋オプション）×qty に対する割引額（単品ベース）
   merchandiseSubtotal: number;  // 割引後小計（税・送料別）
   shipping: number;
   total: number;                // 合計（小計＋送料）
@@ -64,9 +64,9 @@ function getUnit(flow: Flow, variant: Variant): number {
   return table.variants[v].priceIncl as number;
 }
 
-/** 色数課金ロジック（ご指定の要件）
+/** 色数課金ロジック
  * - 一括指定：レインボーなら 800、それ以外は 0
- * - 個別指定：レインボーが1色でも含まれていれば 800（上限）
+ * - 個別指定：レインボー含むなら 800（上限）
  *              含まれない場合、ユニーク色数が2色以上なら (色数-1)*200（上限800）
  *   ※ ユニーク1色（黒以外1色のみでも）0円
  */
@@ -136,6 +136,7 @@ function discountRateOf(flow: Flow, qty: number): number {
   return 0;
 }
 
+/** 単品見積（UI左側の見積テーブル用。割引はそのアイテムの数量ベース） */
 export function computeEstimate(input: EstimateInput): Estimate {
   const {
     flow,
@@ -187,7 +188,7 @@ export function computeEstimate(input: EstimateInput): Estimate {
 
   const optionTotal = extras.reduce((s, d) => s + d.amount, 0);
 
-  // 小計・割引（既存UI互換：オプションも qty に連動）
+  // 小計・割引（単品の数量に基づく）
   const productSubtotal = unit * qty;
   const optionsSubtotal = optionTotal * qty;
   const preDiscount = productSubtotal + optionsSubtotal;
@@ -211,20 +212,49 @@ export function computeEstimate(input: EstimateInput): Estimate {
   };
 }
 
-/** カート全体の合計（小計・送料・割引・合計） */
-export function computeCartTotals(items: Array<{ qty: number; unit: number; optionTotal: number; discount: number }>) {
-  const preDiscount = items.reduce(
+/** カート全体（累計）での割引・合計 */
+export function computeCartTotals(items: Array<{ flow: Flow; qty: number; unit: number; optionTotal: number }>) {
+  // 事前合計（割引前）
+  const preDiscountTotal = items.reduce(
     (s, it) => s + it.qty * it.unit + it.qty * (it.optionTotal ?? 0),
     0
   );
-  const discount = items.reduce((s, it) => s + (it.discount ?? 0), 0);
-  const merchandise = preDiscount - discount;
+
+  // フロー別で数量と金額を集計
+  const agg = {
+    original_qty: 0,
+    original_amount: 0,
+    fullset_qty: 0,
+    fullset_amount: 0,
+  };
+
+  for (const it of items) {
+    const amount = it.qty * it.unit + it.qty * (it.optionTotal ?? 0);
+    if (it.flow === "original_single") {
+      agg.original_qty += it.qty;
+      agg.original_amount += amount;
+    } else if (it.flow === "fullset") {
+      agg.fullset_qty += it.qty;
+      agg.fullset_amount += amount;
+    }
+  }
+
+  // 累計割引率
+  const originalRate = agg.original_qty >= 10 ? 0.15 : agg.original_qty >= 5 ? 0.1 : 0;
+  const fullsetRate = agg.fullset_qty >= 5 ? 0.2 : 0;
+
+  // 割引額は流派ごとに計算して合算
+  const discount =
+    Math.floor(agg.original_amount * originalRate) +
+    Math.floor(agg.fullset_amount * fullsetRate);
+
+  const merchandise = preDiscountTotal - discount;
   const ship = merchandise >= PRICING.shipping.freeOver ? 0 : PRICING.shipping.flat;
   return {
-    preDiscount,   // 割引前の小計（商品+オプション）
-    discount,      // 割引合計
-    merchandise,   // 割引後小計
+    preDiscount: preDiscountTotal, // 割引前小計
+    discount,                      // 割引合計（累計割引）
+    merchandise,                   // 割引後小計
     ship,
-    total: merchandise + ship,
+    total: merchandise + ship,     // 合計
   };
 }
