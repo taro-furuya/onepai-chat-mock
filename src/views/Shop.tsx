@@ -252,48 +252,62 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       <section style={containerStyle} className="mt-6 space-y-6">
 {/* 1. カテゴリ */}
 <Card title="1. カテゴリを選択">
-  <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-5">
     {/* オリジナル麻雀牌 */}
     <button
       type="button"
       onClick={() => {
         setFlow(originalSub === "fullset" ? "fullset" : "original_single");
       }}
-      className={`text-left rounded-xl border p-4 transition hover:shadow ${
+      className={`group relative text-left rounded-2xl border transition hover:shadow ${
         flow !== "regular" ? "border-black" : "border-neutral-200"
-      }`}
+      } p-0 overflow-hidden`}
     >
-      
-      <img
-        src={asset("category-original.jpg")}
-        alt="オリジナル麻雀牌"
-        className="w-full h-28 md:h-36 object-contain bg-neutral-50 rounded-xl mb-3"
+      {/* 画像をカード全面に。上下左右の余白ナシ */}
+      <div className="relative h-[180px] md:h-[220px]">
+        <img
+          src={asset("category-original.jpg")}
+          alt="オリジナル麻雀牌"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+          decoding="async"
         />
-      <div className="text-base font-semibold">オリジナル麻雀牌</div>
-      <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
-      <div className="text-[12px] text-neutral-700 mt-2">
-        あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
+      </div>
+
+      {/* テキストは内側に余白 */}
+      <div className="p-4">
+        <div className="text-base font-semibold">オリジナル麻雀牌</div>
+        <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
+        <div className="text-[12px] text-neutral-700 mt-2">
+          あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
+        </div>
       </div>
     </button>
 
-    {/* 通常牌 */}
+    {/* 通常牌（バラ売り） */}
     <button
       type="button"
       onClick={() => setFlow("regular")}
-      className={`text-left rounded-xl border p-4 transition hover:shadow ${
+      className={`group relative text-left rounded-2xl border transition hover:shadow ${
         flow === "regular" ? "border-black" : "border-neutral-200"
-      }`}
+      } p-0 overflow-hidden`}
     >
-      
-      <img
-        src={asset("category-regular.jpg")}
-        alt="通常牌"
-        className="w-full h-28 md:h-36 object-contain bg-neutral-50 rounded-xl mb-3"
+      <div className="relative h-[180px] md:h-[220px]">
+        <img
+          src={asset("category-regular.jpg")}
+          alt="通常牌（バラ売り）"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+          decoding="async"
         />
-      <div className="text-base font-semibold">通常牌（バラ売り）</div>
-      <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
-      <div className="text-[12px] text-neutral-700 mt-2">
-        通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
+      </div>
+
+      <div className="p-4">
+        <div className="text-base font-semibold">通常牌（バラ売り）</div>
+        <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
+        <div className="text-[12px] text-neutral-700 mt-2">
+          通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
+        </div>
       </div>
     </button>
   </div>
