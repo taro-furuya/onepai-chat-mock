@@ -1,7 +1,7 @@
 // src/components/Hero.tsx
 import React from "react";
 
-const HERO_SRC = "/assets/hero-onepai.jpg"; // public/assets/hero-onepai.jpg
+const HERO_SRC = "public/assets/hero-onepai.jpg"; // public/assets/hero-onepai.jpg
 
 export default function Hero({
   onPrimary,
