@@ -32,4 +32,6 @@ const App: React.FC = () => {
   );
 };
 
+<QAWidget />
+
 export default App;
