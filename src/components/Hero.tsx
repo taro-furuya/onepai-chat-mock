@@ -1,45 +1,34 @@
 import React from "react";
 import { asset } from "../utils/asset";
 
-export default function Hero({
-  onPrimary,
-  onSecondary,
-}: {
-  onPrimary: () => void;
-  onSecondary: () => void;
-}) {
+type Props = {
+  onPrimary?: () => void;
+  onSecondary?: () => void;
+};
+
+const Hero: React.FC<Props> = ({ onPrimary, onSecondary }) => {
   return (
-    <section className="relative w-full overflow-hidden">
-      {/* 高さは画面幅で伸縮／最小320〜最大560px。角丸なし */}
-      <div
-        className="w-full"
-        style={{
-          height: "clamp(320px, 38vw, 560px)",
-        }}
-      >
+    <section className="w-full">
+      <div className="relative w-full">
+        {/* 角丸を付けない／見切れ対策に高さを拡張 */}
         <img
-          src={asset("public/assets/hero-onepai.jpg")}
+          src={asset("assets/hero-onepai.jpg")}
           alt="オンリーワンなオリジナル麻雀牌なら、one牌"
           className="w-full object-cover"
-          style={{
-            height: "520px",        // 以前より少し高く（見切れ防止）
-            borderRadius: 0         // 角丸をなくす
-              }}
-          />
-      </div>
+          style={{ height: "520px", borderRadius: 0 }}
+        />
 
-      {/* CTA */}
-      <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
-        <div className="flex gap-3 pointer-events-auto">
+        {/* CTA */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3">
           <button
             onClick={onPrimary}
-            className="px-6 py-3 rounded-xl bg-black text-white shadow-lg hover:opacity-90"
+            className="px-6 py-3 rounded-2xl bg-black text-white shadow"
           >
             作ってみる
           </button>
           <button
             onClick={onSecondary}
-            className="px-6 py-3 rounded-xl bg-white text-black shadow hover:bg-neutral-50"
+            className="px-6 py-3 rounded-2xl bg-white shadow border"
           >
             法人問い合わせ
           </button>
@@ -47,4 +36,6 @@ export default function Hero({
       </div>
     </section>
   );
-}
+};
+
+export default Hero;
