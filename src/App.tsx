@@ -3,6 +3,7 @@ import Nav from "./components/Nav";
 import Shop from "./views/Shop";
 import Guidelines from "./views/Guidelines";
 import Corporate from "./views/Corporate";
+import QAWidget from "./components/QAWidget";
 
 const useHash = () =>
   useSyncExternalStore(
@@ -32,6 +33,6 @@ const App: React.FC = () => {
   );
 };
 
-<QAWidget />
-
 export default App;
+
+<QAWidget />
