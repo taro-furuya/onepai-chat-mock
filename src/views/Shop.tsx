@@ -741,118 +741,141 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         </Card>
       </section>
 
-      {/* ===== ボトムバー（画面下“全面”、中央寄せ） ===== */}
-      <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
-        <div style={{ ...containerStyle }} className="px-4 pt-2 pb-2">
-          {/* 上段：合計サマリ */}
-          <div className="h-[44px] flex items-center justify-between">
-            <div className="text-sm">
-              <div className="font-semibold">カート</div>
-              <div className="text-neutral-600">
-                小計 ¥{fmt(cartTotals.preDiscount)} ・ 送料 {cartTotals.ship === 0 ? "¥0（無料）" : `¥${fmt(cartTotals.ship)}`}
-                {cartTotals.discount > 0 && (
-                  <span className="text-rose-500 ml-2">割引 -¥{fmt(cartTotals.discount)}</span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-2xl font-bold mr-1">合計 ¥{fmt(cartTotals.total)}</div>
-              <button type="button" className="px-4 py-2 rounded-xl border" onClick={addToCart}>
-                カートに追加
-              </button>
-              <button
-                type="button"
-                className="px-5 py-2 rounded-xl bg-white border"
-                onClick={() => setMiniCartOpen((v) => !v)}
-                aria-expanded={miniCartOpen}
-                aria-controls="cart-accordion"
-              >
-                {miniCartOpen ? "カートを閉じる" : "カートを表示"}
-              </button>
-              <button
-                type="button"
-                className="px-5 py-2 rounded-xl bg-black text-white"
-                onClick={() => setMiniCartOpen(true)}
-              >
-                購入手続きへ
-              </button>
-            </div>
-          </div>
-
-          {/* 下段：アコーディオン（開閉） */}
-          <div
-            id="cart-accordion"
-            className={`transition-[max-height] duration-300 ease-in-out overflow-hidden ${
-              miniCartOpen ? "max-h-[50vh]" : "max-h-0"
-            }`}
-          >
-            <div className="mt-3 border rounded-xl p-3 bg-white shadow-sm max-h-[46vh] overflow-auto">
-              {cartItems.length === 0 ? (
-                <div className="text-sm text-neutral-600 p-4 text-center">カートは空です。</div>
-              ) : (
-                <div className="space-y-3">
-                  {cartItems.map((ci) => (
-                    <div key={ci.id} className="border rounded-lg p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-medium">{ci.title}</div>
-                          <div className="text-sm text-neutral-600">数量：{ci.qty}</div>
-
-                          {/* デザイン要約 */}
-                          {ci.designSummary && (
-                            <div className="text-xs text-neutral-700 mt-1">
-                              <span className="font-semibold">デザイン：</span>{ci.designSummary}
-                            </div>
-                          )}
-
-                          {/* サムネ */}
-                          {ci.thumbs && ci.thumbs.length > 0 && (
-                            <div className="mt-2 grid grid-cols-4 gap-2">
-                              {ci.thumbs.map((src, i) => (
-                                <img key={i} src={src} alt={`thumb_${i}`} className="w-full h-16 object-cover rounded border" />
-                              ))}
-                            </div>
-                          )}
-
-                          {/* オプション明細 */}
-                          {ci.extras.length > 0 && (
-                            <div className="text-xs mt-2">
-                              <div className="font-semibold mb-1">オプション：</div>
-                              <ul className="list-disc ml-5 space-y-0.5">
-                                {ci.extras.map((e, i) => (
-                                  <li key={i}>{e.label}：¥{fmt(e.amount)}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* 備考 */}
-                          {ci.note && <div className="text-xs text-neutral-600 mt-2">備考：{ci.note}</div>}
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-sm">小計：¥{fmt(lineTotal(ci))}</div>
-                          <button className="mt-2 px-2 py-1 rounded border text-xs" onClick={() => removeFromCart(ci.id)}>
-                            削除
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 合計行（カート全体） */}
-              <div className="mt-3 border-t pt-3 text-right space-y-1">
-                <div>小計：¥{fmt(cartTotals.preDiscount)}</div>
-                <div>送料：{cartTotals.ship === 0 ? "¥0（無料）" : `¥${fmt(cartTotals.ship)}`}</div>
-                {cartTotals.discount > 0 && <div className="text-rose-600">割引：-¥{fmt(cartTotals.discount)}</div>}
-                <div className="text-lg font-semibold">合計：¥{fmt(cartTotals.total)}</div>
-              </div>
-            </div>
-          </div>
+{/* ===== ボトムバー（画面下“全面”、中央寄せ） ===== */}
+<div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
+  <div style={{ ...containerStyle }} className="px-4 pt-2 pb-2">
+    {/* 上段：合計サマリ */}
+    <div className="h-[44px] flex items-center justify-between">
+      <div className="text-sm">
+        <div className="font-semibold">カート</div>
+        <div className="text-neutral-600">
+          小計 ¥{fmt(cartTotals.preDiscount)} ・ 送料{" "}
+          {cartTotals.ship === 0 ? "¥0（無料）" : `¥${fmt(cartTotals.ship)}`}
+          {cartTotals.discount > 0 && (
+            <span className="text-rose-600 ml-2">
+              割引 -¥{fmt(cartTotals.discount)}
+            </span>
+          )}
         </div>
       </div>
+
+      <div className="flex items-center gap-3">
+        <div className="text-2xl font-bold mr-1">合計 ¥{fmt(cartTotals.total)}</div>
+
+        {/* 追加：購入手続きへ */}
+        <button
+          type="button"
+          className="px-5 py-2 rounded-xl bg-black text-white"
+          onClick={() => setMiniCartOpen(true)}
+        >
+          購入手続きへ
+        </button>
+
+        {/* 既存：カートに追加 */}
+        <button type="button" className="px-4 py-2 rounded-xl border" onClick={addToCart}>
+          カートに追加
+        </button>
+
+        {/* アコーディオン開閉 */}
+        <button
+          type="button"
+          className="px-5 py-2 rounded-xl bg-white border"
+          onClick={() => setMiniCartOpen((v) => !v)}
+          aria-expanded={miniCartOpen}
+          aria-controls="cart-accordion"
+        >
+          {miniCartOpen ? "カートを閉じる" : "カートを表示"}
+        </button>
+      </div>
+    </div>
+
+    {/* 下段：アコーディオン（開閉） */}
+    <div
+      id="cart-accordion"
+      className={`transition-[max-height] duration-300 ease-in-out overflow-hidden ${
+        miniCartOpen ? "max-h-[50vh]" : "max-h-0"
+      }`}
+    >
+      <div className="mt-3 border rounded-xl p-3 bg-white shadow-sm max-h-[46vh] overflow-auto">
+        {cartItems.length === 0 ? (
+          <div className="text-sm text-neutral-600 p-4 text-center">カートは空です。</div>
+        ) : (
+          <div className="space-y-3">
+            {cartItems.map((ci) => (
+              <div key={ci.id} className="border rounded-lg p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium">{ci.title}</div>
+                    <div className="text-sm text-neutral-600">数量：{ci.qty}</div>
+
+                    {ci.designSummary && (
+                      <div className="text-xs text-neutral-700 mt-1">
+                        <span className="font-semibold">デザイン：</span>
+                        {ci.designSummary}
+                      </div>
+                    )}
+
+                    {ci.thumbs && ci.thumbs.length > 0 && (
+                      <div className="mt-2 grid grid-cols-4 gap-2">
+                        {ci.thumbs.map((src, i) => (
+                          <img
+                            key={i}
+                            src={src}
+                            alt={`thumb_${i}`}
+                            className="w-full h-16 object-cover rounded border"
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {ci.extras.length > 0 && (
+                      <div className="text-xs mt-2">
+                        <div className="font-semibold mb-1">オプション：</div>
+                        <ul className="list-disc ml-5 space-y-0.5">
+                          {ci.extras.map((e, i) => (
+                            <li key={i}>
+                              {e.label}：¥{fmt(e.amount)}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {ci.note && (
+                      <div className="text-xs text-neutral-600 mt-2">備考：{ci.note}</div>
+                    )}
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className="text-sm">
+                      小計：¥{fmt(ci.qty * ci.unit + ci.qty * (ci.optionTotal ?? 0))}
+                    </div>
+                    <button
+                      className="mt-2 px-2 py-1 rounded border text-xs"
+                      onClick={() => removeFromCart(ci.id)}
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 合計行（カート全体） */}
+        <div className="mt-3 border-t pt-3 text-right space-y-1">
+          <div>小計：¥{fmt(cartTotals.preDiscount)}</div>
+          {cartTotals.discount > 0 && (
+            <div className="text-rose-600">割引：-¥{fmt(cartTotals.discount)}</div>
+          )}
+          <div>送料：{cartTotals.ship === 0 ? "¥0（無料）" : `¥${fmt(cartTotals.ship)}`}</div>
+          <div className="text-lg font-semibold">合計：¥{fmt(cartTotals.total)}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
       {/* トースト */}
       {toast && (
