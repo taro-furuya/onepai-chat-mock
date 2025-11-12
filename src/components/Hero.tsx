@@ -1,41 +1,43 @@
+// src/components/Hero.tsx
 import React from "react";
-import { asset } from "../utils/asset";
 
-type Props = {
-  onPrimary?: () => void;
-  onSecondary?: () => void;
-};
+const HERO_SRC = "/assets/hero-onepai.jpg"; // public/assets/hero-onepai.jpg
 
-const Hero: React.FC<Props> = ({ onPrimary, onSecondary }) => {
+export default function Hero({
+  onPrimary,
+  onSecondary,
+}: {
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
   return (
-    <section className="w-full">
-      <div className="relative w-full">
-        {/* 角丸を付けない／見切れ対策に高さを拡張 */}
+    <div className="relative w-full bg-white">
+      {/* 画像を「見切れない（トリミングしない）」= object-contain */}
+      <div className="w-full h-[420px] md:h-[560px]">
         <img
-          src={asset("assets/hero-onepai.jpg")}
+          src={HERO_SRC}
           alt="オンリーワンなオリジナル麻雀牌なら、one牌"
-          className="w-full object-cover"
-          style={{ height: "520px", borderRadius: 0 }}
+          className="w-full h-full object-contain rounded-none"
+          loading="eager"
+          decoding="async"
         />
-
-        {/* CTA */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3">
-          <button
-            onClick={onPrimary}
-            className="px-6 py-3 rounded-2xl bg-black text-white shadow"
-          >
-            作ってみる
-          </button>
-          <button
-            onClick={onSecondary}
-            className="px-6 py-3 rounded-2xl bg-white shadow border"
-          >
-            法人問い合わせ
-          </button>
-        </div>
       </div>
-    </section>
-  );
-};
 
-export default Hero;
+      {/* CTA */}
+      <div className="absolute inset-x-0 bottom-6 flex justify-center gap-3 pointer-events-none">
+        <button
+          onClick={onPrimary}
+          className="px-6 py-3 rounded-2xl bg-black text-white shadow pointer-events-auto"
+        >
+          作ってみる
+        </button>
+        <button
+          onClick={onSecondary}
+          className="px-6 py-3 rounded-2xl bg-white shadow pointer-events-auto"
+        >
+          法人問い合わせ
+        </button>
+      </div>
+    </div>
+  );
+}
