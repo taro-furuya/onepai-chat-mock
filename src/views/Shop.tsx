@@ -265,7 +265,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     >
       
       <img
-        src="public/assets/category-original.jpg"
+        src={asset("category-original.jpg")}
         alt="オリジナル麻雀牌"
         className="w-full h-28 md:h-36 object-contain bg-neutral-50 rounded-xl mb-3"
         />
@@ -284,8 +284,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         flow === "regular" ? "border-black" : "border-neutral-200"
       }`}
     >
+      
       <img
-        src="public/assets/category-regular.jpg"
+        src={asset("category-regular.jpg")}
         alt="通常牌"
         className="w-full h-28 md:h-36 object-contain bg-neutral-50 rounded-xl mb-3"
         />
