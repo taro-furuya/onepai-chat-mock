@@ -18,7 +18,7 @@ export default function Hero({
         }}
       >
         <img
-          src={asset("assets/hero-onepai.jpg")}
+          src={asset("public/assets/hero-onepai.jpg")}
           alt="オンリーワンなオリジナル麻雀牌なら、one牌"
           className="w-full object-cover"
           style={{
