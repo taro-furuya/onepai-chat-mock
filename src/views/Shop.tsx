@@ -264,7 +264,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }`}
   >
     <img
-      src={asset("assets/cat-original.jpg")}
+      src={asset("public/assets/cat-original.jpg")}
       alt="オリジナル麻雀牌"
       className="w-full h-40 object-cover rounded-lg mb-3"
       />
@@ -285,7 +285,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }`}
   >
     <img
-      src={asset("assets/cat-regular.jpg")}
+      src={asset("public/assets/cat-regular.jpg")}
       alt="通常牌（バラ売り）"
       className="w-full h-40 object-cover rounded-lg mb-3"
       />
