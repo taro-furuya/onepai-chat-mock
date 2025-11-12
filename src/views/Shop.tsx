@@ -263,11 +263,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         flow !== "regular" ? "border-black" : "border-neutral-200"
       }`}
     >
+      
       <img
-        src={asset("assets/cat-original.jpg")}
+        src="/assets/category-original.jpg"
         alt="オリジナル麻雀牌"
-        className="w-full h-40 object-cover rounded-lg mb-3"
-      />
+        className="w-full h-28 md:h-36 object-contain bg-neutral-50 rounded-xl mb-3"
+        />
       <div className="text-base font-semibold">オリジナル麻雀牌</div>
       <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
       <div className="text-[12px] text-neutral-700 mt-2">
@@ -284,10 +285,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       }`}
     >
       <img
-        src={asset("assets/cat-regular.jpg")}
-        alt="通常牌（バラ売り）"
-        className="w-full h-40 object-cover rounded-lg mb-3"
-      />
+        src="/assets/category-regular.jpg"
+        alt="通常牌"
+        className="w-full h-28 md:h-36 object-contain bg-neutral-50 rounded-xl mb-3"
+        />
       <div className="text-base font-semibold">通常牌（バラ売り）</div>
       <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
       <div className="text-[12px] text-neutral-700 mt-2">
