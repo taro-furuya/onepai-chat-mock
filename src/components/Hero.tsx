@@ -17,7 +17,7 @@ export default function Hero({
         }}
       >
         <img
-          src="/assets/onepai-hero.jpg" // ← 既にアップした画像
+          src="public/assets/onepai-hero.jpg" // ← 既にアップした画像
           alt="オンリーワンなオリジナル麻雀牌なら、one牌"
           className="w-full h-full object-cover object-center block" // coverで見切れない
           draggable={false}
