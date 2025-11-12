@@ -250,87 +250,89 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       <Hero onPrimary={scrollToSelect} onSecondary={gotoCorporate} />
 
       <section style={containerStyle} className="mt-6 space-y-6">
-        {/* 1. カテゴリ */}
-        <Card title="1. カテゴリを選択">
-// 1. カテゴリを選択 の <Card> 内
-<div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+{/* 1. カテゴリ */}
+<Card title="1. カテゴリを選択">
+  <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    {/* オリジナル麻雀牌 */}
+    <button
+      type="button"
+      onClick={() => {
+        setFlow(originalSub === "fullset" ? "fullset" : "original_single");
+      }}
+      className={`text-left rounded-xl border p-4 transition hover:shadow ${
+        flow !== "regular" ? "border-black" : "border-neutral-200"
+      }`}
+    >
+      <img
+        src={asset("assets/cat-original.jpg")}
+        alt="オリジナル麻雀牌"
+        className="w-full h-40 object-cover rounded-lg mb-3"
+      />
+      <div className="text-base font-semibold">オリジナル麻雀牌</div>
+      <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
+      <div className="text-[12px] text-neutral-700 mt-2">
+        あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
+      </div>
+    </button>
 
-  {/* オリジナル麻雀牌 */}
-  <button
-    type="button"
-    onClick={() => {
-      setFlow(originalSub === "fullset" ? "fullset" : "original_single");
-    }}
-    className={`text-left rounded-xl border p-4 transition hover:shadow ${
-      flow !== "regular" ? "border-black" : "border-neutral-200"
-    }`}
-  >
-    <img
-      src={asset("assets/cat-original.jpg")}
-      alt="オリジナル麻雀牌"
-      className="w-full h-40 object-cover rounded-lg mb-3"
-    />
-    <div className="text-base font-semibold">オリジナル麻雀牌</div>
-    <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
-    <div className="text-[12px] text-neutral-700 mt-2">
-      あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
+    {/* 通常牌 */}
+    <button
+      type="button"
+      onClick={() => setFlow("regular")}
+      className={`text-left rounded-xl border p-4 transition hover:shadow ${
+        flow === "regular" ? "border-black" : "border-neutral-200"
+      }`}
+    >
+      <img
+        src={asset("assets/cat-regular.jpg")}
+        alt="通常牌（バラ売り）"
+        className="w-full h-40 object-cover rounded-lg mb-3"
+      />
+      <div className="text-base font-semibold">通常牌（バラ売り）</div>
+      <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
+      <div className="text-[12px] text-neutral-700 mt-2">
+        通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
+      </div>
+    </button>
+  </div>
+
+  {/* 28/30mmや納期の注記（通常牌以外のときだけ表示） */}
+  {flow !== "regular" && (
+    <div className="mt-3">
+      <div className="flex flex-wrap gap-2">
+        <Pill
+          active={originalSub === "single"}
+          onClick={() => {
+            setOriginalSub("single");
+            setFlow("original_single");
+          }}
+        >
+          1つから
+        </Pill>
+        <Pill
+          active={originalSub === "fullset"}
+          onClick={() => {
+            setOriginalSub("fullset");
+            setFlow("fullset");
+          }}
+        >
+          フルセット
+        </Pill>
+      </div>
+
+      {/* 納期（選択時のみ表示） */}
+      <div className="mt-3 text-xs text-neutral-600 space-y-1">
+        {flow === "original_single" && <div>発送目安：<b>約2〜3週間</b></div>}
+        {flow === "fullset" && (
+          <div>
+            納期：<b>デザイン確定から2〜3か月</b>
+          </div>
+        )}
+      </div>
     </div>
-  </button>
+  )}
+</Card>
 
-  {/* 通常牌 */}
-  <button
-    type="button"
-    onClick={() => setFlow("regular")}
-    className={`text-left rounded-xl border p-4 transition hover:shadow ${
-      flow === "regular" ? "border-black" : "border-neutral-200"
-    }`}
-  >
-    <img
-      src={asset("assets/cat-regular.jpg")}
-      alt="通常牌（バラ売り）"
-      className="w-full h-40 object-cover rounded-lg mb-3"
-    />
-    <div className="text-base font-semibold">通常牌（バラ売り）</div>
-    <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
-    <div className="text-[12px] text-neutral-700 mt-2">
-      通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
-    </div>
-  </button>
-
-</div>
-
-
-          {flow !== "regular" && (
-            <div className="mt-3">
-              <div className="flex flex-wrap gap-2">
-                <Pill
-                  active={originalSub === "single"}
-                  onClick={() => {
-                    setOriginalSub("single");
-                    setFlow("original_single");
-                  }}
-                >
-                  1つから
-                </Pill>
-                <Pill
-                  active={originalSub === "fullset"}
-                  onClick={() => {
-                    setOriginalSub("fullset");
-                    setFlow("fullset");
-                  }}
-                >
-                  フルセット
-                </Pill>
-              </div>
-
-              {/* 納期（選択時のみ表示） */}
-              <div className="mt-3 text-xs text-neutral-600 space-y-1">
-                {flow === "original_single" && <div>発送目安：<b>約2〜3週間</b></div>}
-                {flow === "fullset" && <div>納期：<b>デザイン確定から2〜3か月</b></div>}
-              </div>
-            </div>
-          )}
-        </Card>
 
         {/* 2. 分岐 */}
         {flow === "regular" ? (
