@@ -251,37 +251,54 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       <section style={containerStyle} className="mt-6 space-y-6">
         {/* 1. カテゴリ */}
         <Card title="1. カテゴリを選択">
-          <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setFlow(originalSub === "fullset" ? "fullset" : "original_single");
-              }}
-              className={`text-left rounded-xl border p-4 transition hover:shadow ${
-                flow !== "regular" ? "border-black" : "border-neutral-200"
-              }`}
-            >
-              <div className="text-base font-semibold">オリジナル麻雀牌</div>
-              <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
-              <div className="text-[12px] text-neutral-700 mt-2">
-                あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
-              </div>
-            </button>
+<div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  {/* オリジナル */}
+  <button
+    type="button"
+    onClick={() => {
+      setFlow(originalSub === "fullset" ? "fullset" : "original_single");
+    }}
+    className={`group relative overflow-hidden rounded-2xl border transition hover:shadow-md ${
+      flow !== "regular" ? "border-black" : "border-neutral-200"
+    }`}
+  >
+    <img
+      src="/assets/category-original.jpg"
+      alt=""
+      className="w-full h-44 md:h-52 object-cover object-center opacity-95 group-hover:scale-[1.02] transition"
+      draggable={false}
+    />
+    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
+    <div className="absolute left-3 bottom-3 text-white">
+      <div className="text-base font-semibold">オリジナル麻雀牌</div>
+      <div className="text-xs opacity-90">28mm / 30mm</div>
+      <div className="text-[12px] opacity-90 mt-1">あなただけのオリジナル牌を作成。</div>
+    </div>
+  </button>
 
-            <button
-              type="button"
-              onClick={() => setFlow("regular")}
-              className={`text-left rounded-xl border p-4 transition hover:shadow ${
-                flow === "regular" ? "border-black" : "border-neutral-200"
-              }`}
-            >
-              <div className="text-base font-semibold">通常牌（バラ売り）</div>
-              <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
-              <div className="text-[12px] text-neutral-700 mt-2">
-                通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
-              </div>
-            </button>
-          </div>
+  {/* 通常牌 */}
+  <button
+    type="button"
+    onClick={() => setFlow("regular")}
+    className={`group relative overflow-hidden rounded-2xl border transition hover:shadow-md ${
+      flow === "regular" ? "border-black" : "border-neutral-200"
+    }`}
+  >
+    <img
+      src="/assets/category-regular.jpg"
+      alt=""
+      className="w-full h-44 md:h-52 object-cover object-center opacity-95 group-hover:scale-[1.02] transition"
+      draggable={false}
+    />
+    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
+    <div className="absolute left-3 bottom-3 text-white">
+      <div className="text-base font-semibold">通常牌（バラ売り）</div>
+      <div className="text-xs opacity-90">28mm</div>
+      <div className="text-[12px] opacity-90 mt-1">1枚から。キーホルダー対応も！</div>
+    </div>
+  </button>
+</div>
+
 
           {flow !== "regular" && (
             <div className="mt-3">
