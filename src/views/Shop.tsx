@@ -5,6 +5,7 @@ import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview
 import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 import { computeEstimate, computeCartTotals, PRICING, type Flow } from "../utils/pricing";
+import { asset } from "../utils/asset";
 
 /** ----------------- 型・定数 ----------------- */
 type FontKey = "ta-fuga-fude" | "gothic" | "mincho";
@@ -263,11 +264,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }`}
   >
     <img
-      src="/assets/category-original.jpg"
-      alt=""
-      className="w-full h-44 md:h-52 object-cover object-center opacity-95 group-hover:scale-[1.02] transition"
-      draggable={false}
-    />
+      src={asset("assets/cat-original.jpg")}
+      alt="オリジナル麻雀牌"
+      className="w-full h-40 object-cover rounded-lg mb-3"
+      />
     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
     <div className="absolute left-3 bottom-3 text-white">
       <div className="text-base font-semibold">オリジナル麻雀牌</div>
@@ -285,11 +285,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     }`}
   >
     <img
-      src="/assets/category-regular.jpg"
-      alt=""
-      className="w-full h-44 md:h-52 object-cover object-center opacity-95 group-hover:scale-[1.02] transition"
-      draggable={false}
-    />
+      src={asset("assets/cat-regular.jpg")}
+      alt="通常牌（バラ売り）"
+      className="w-full h-40 object-cover rounded-lg mb-3"
+      />
     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
     <div className="absolute left-3 bottom-3 text-white">
       <div className="text-base font-semibold">通常牌（バラ売り）</div>
