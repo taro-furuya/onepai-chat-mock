@@ -1,4 +1,5 @@
 import React from "react";
+import { asset } from "../utils/asset";
 
 export default function Hero({
   onPrimary,
@@ -17,11 +18,14 @@ export default function Hero({
         }}
       >
         <img
-          src="public/assets/onepai-hero.jpg" // ← 既にアップした画像
+          src={asset("assets/hero-onepai.jpg")}
           alt="オンリーワンなオリジナル麻雀牌なら、one牌"
-          className="w-full h-full object-cover object-center block" // coverで見切れない
-          draggable={false}
-        />
+          className="w-full object-cover"
+          style={{
+            height: "520px",        // 以前より少し高く（見切れ防止）
+            borderRadius: 0         // 角丸をなくす
+              }}
+          />
       </div>
 
       {/* CTA */}
