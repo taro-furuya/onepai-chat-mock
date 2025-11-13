@@ -319,6 +319,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     <div className="mt-3">
       <div className="flex flex-wrap gap-2">
         <Pill
+          tone="indigo"
           active={originalSub === "single"}
           onClick={() => {
             setOriginalSub("single");
@@ -328,6 +329,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
           1つから
         </Pill>
         <Pill
+          tone="indigo"
           active={originalSub === "fullset"}
           onClick={() => {
             setOriginalSub("fullset");
@@ -359,6 +361,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               <div className="space-y-3">
                 <div className={formRowClass}>
                   <label className={formLabelClass}>背面色</label>
+                  <Pill tone="slate" active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>黄色</Pill>
+                  <Pill tone="slate" active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>青色</Pill>
+                </div>
+                <div className={formRowClass}>
+                  <label className={formLabelClass}>種別</label>
+                  <Pill tone="emerald" active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>字牌</Pill>
+                  <Pill tone="emerald" active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
+                  <Pill tone="emerald" active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
+                  <Pill tone="emerald" active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
                   <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>黄色</Pill>
                   <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>青色</Pill>
                 </div>
@@ -373,14 +384,14 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <div className={formRowClass}>
                     <label className={formLabelClass}>字牌</label>
                     {["東", "南", "西", "北", "白", "發", "中"].map((h) => (
-                      <Pill key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>{h}</Pill>
+                      <Pill tone="rose" key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>{h}</Pill>
                     ))}
                   </div>
                 ) : (
                   <div className={formRowClass}>
                     <label className={formLabelClass}>数字</label>
                     {Array.from({ length: 9 }).map((_, i) => (
-                      <Pill key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>{i + 1}</Pill>
+                      <Pill tone="amber" key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>{i + 1}</Pill>
                     ))}
                   </div>
                 )}
@@ -396,10 +407,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* デザイン方式 */}
             <div className="flex flex-wrap gap-2">
               {flow !== "fullset" && (
-                <Pill active={designType === "name_print"} onClick={() => setDesignType("name_print")}>名前入れ</Pill>
+                <Pill tone="rose" active={designType === "name_print"} onClick={() => setDesignType("name_print")}>名前入れ</Pill>
               )}
-              <Pill active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>デザイン持ち込み</Pill>
-              <Pill active={designType === "commission"} onClick={() => setDesignType("commission")}>デザイン依頼</Pill>
+              <Pill tone="rose" active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>デザイン持ち込み</Pill>
+              <Pill tone="rose" active={designType === "commission"} onClick={() => setDesignType("commission")}>デザイン依頼</Pill>
             </div>
 
             {/* 名前入れ */}
@@ -418,23 +429,38 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
                   <div className={formRowClass}>
                     <label className={formLabelClass}>レイアウト</label>
+
+                    <Pill tone="emerald" active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                    <Pill tone="emerald" active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
                     <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
                     <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+
                   </div>
 
                   <div className={formRowClass}>
                     <label className={formLabelClass}>フォント</label>
+
+                    <Pill tone="amber" active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
+                    <Pill tone="amber" active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                    <Pill tone="amber" active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+
                     <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
                     <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
                     <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+
                   </div>
 
                   {/* 色指定 */}
                   <div className="space-y-2">
                     <div className={formRowClass}>
                       <label className={formLabelClass}>色指定</label>
+
+                      <Pill tone="slate" active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
+                      <Pill tone="slate" active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
+
                       <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
                       <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
+
                     </div>
 
                     {useUnifiedColor ? (
@@ -595,8 +621,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         {(flow === "original_single" || flow === "fullset") && (
           <Card title="3. サイズ選択">
             <div className="flex gap-2">
-              <Pill active={variant === "standard"} onClick={() => setVariant("standard")}>28mm</Pill>
-              <Pill active={variant === "mm30"} onClick={() => setVariant("mm30")}>30mm</Pill>
+              <Pill tone="indigo" active={variant === "standard"} onClick={() => setVariant("standard")}>28mm</Pill>
+              <Pill tone="indigo" active={variant === "mm30"} onClick={() => setVariant("mm30")}>30mm</Pill>
             </div>
 
             {/* 対応機種（選んだサイズだけ表示） */}
