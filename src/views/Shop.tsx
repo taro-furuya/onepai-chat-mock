@@ -370,6 +370,15 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <Pill tone="emerald" active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
                   <Pill tone="emerald" active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
                   <Pill tone="emerald" active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
+                  <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>黄色</Pill>
+                  <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>青色</Pill>
+                </div>
+                <div className={formRowClass}>
+                  <label className={formLabelClass}>種別</label>
+                  <Pill active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>字牌</Pill>
+                  <Pill active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
+                  <Pill active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
+                  <Pill active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
                 </div>
                 {regularSuit === "honor" ? (
                   <div className={formRowClass}>
@@ -420,23 +429,38 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
                   <div className={formRowClass}>
                     <label className={formLabelClass}>レイアウト</label>
+
                     <Pill tone="emerald" active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
                     <Pill tone="emerald" active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+
                   </div>
 
                   <div className={formRowClass}>
                     <label className={formLabelClass}>フォント</label>
+
                     <Pill tone="amber" active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
                     <Pill tone="amber" active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
                     <Pill tone="amber" active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+
+                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
+                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+
                   </div>
 
                   {/* 色指定 */}
                   <div className="space-y-2">
                     <div className={formRowClass}>
                       <label className={formLabelClass}>色指定</label>
+
                       <Pill tone="slate" active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
                       <Pill tone="slate" active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
+
+                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
+                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
+
                     </div>
 
                     {useUnifiedColor ? (
