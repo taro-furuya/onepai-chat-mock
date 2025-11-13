@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export type Layout = "vertical" | "horizontal";
 export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
@@ -81,8 +81,41 @@ export default function NameTilePreview(props: {
   const chars = useMemo(() => Array.from(text || ""), [text]);
   const groups = useMemo(() => splitTwoLines(chars), [chars]);
 
-  const width = layout === "vertical" ? 360 : 580;
+  const baseWidth = layout === "vertical" ? 360 : 580;
   const aspect = layout === "vertical" ? 21 / 28 : 28 / 21;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(baseWidth);
+
+  useEffect(() => {
+    setWidth((prev) => Math.min(prev, baseWidth));
+  }, [baseWidth]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = (nextWidth: number) => {
+      const clamped = Math.max(200, Math.min(baseWidth, Math.round(nextWidth)));
+      setWidth(clamped);
+    };
+
+    update(el.clientWidth || baseWidth);
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        update(entry.contentRect.width);
+      });
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+
+    const handle = () => update(el.clientWidth || baseWidth);
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, [baseWidth]);
+
   const height = Math.round(width / aspect);
   const padding = 10;
   const shortSide = Math.min(width, height) - padding * 2;
@@ -116,7 +149,7 @@ export default function NameTilePreview(props: {
   const colorAt = (index: number): ColorKey => (colors[index] ? colors[index] : "black");
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" ref={containerRef} style={{ width: "100%", maxWidth: baseWidth, margin: "0 auto" }}>
       <div
         className="mx-auto select-none shadow-[0_8px_20px_rgba(0,0,0,.08)] bg-white"
         style={{
