@@ -28,7 +28,9 @@ const splitChars = (s: string) => Array.from(s || "");
 const suitLabel = (s: "manzu" | "souzu" | "pinzu") => (s === "manzu" ? "萬子" : s === "souzu" ? "索子" : "筒子");
 const containerStyle: React.CSSProperties = { maxWidth: "min(1024px, 92vw)", margin: "0 auto" };
 const formRowClass = "flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3";
+// <<<<<<< codex/add-responsible
 const formRowContentClass = "flex flex-wrap gap-2";
+// >>>>>>> main
 const formLabelClass = "text-sm font-medium sm:w-24";
 const BOTTOM_BAR_HEIGHT = 76;
 
@@ -372,6 +374,22 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <Pill tone="emerald" active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
                   <Pill tone="emerald" active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
                 </div>
+                <div className={formRowClass}>
+                  <label className={formLabelClass}>種別</label>
+                  <Pill tone="emerald" active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>字牌</Pill>
+                  <Pill tone="emerald" active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
+                  <Pill tone="emerald" active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
+                  <Pill tone="emerald" active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
+                  <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>黄色</Pill>
+                  <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>青色</Pill>
+                </div>
+                <div className={formRowClass}>
+                  <label className={formLabelClass}>種別</label>
+                  <Pill active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>字牌</Pill>
+                  <Pill active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
+                  <Pill active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
+                  <Pill active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
+                </div>
                 {regularSuit === "honor" ? (
                   <div className={formRowClass}>
                     <label className={formLabelClass}>字牌</label>
@@ -407,6 +425,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
             {/* 名前入れ */}
             {designType === "name_print" && (
+//<<<<<<< codex/add-responsible-response-implementation-zq64mc
               <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:items-start">
                 <div className="order-1 md:order-none md:sticky md:top-24">
                   <div className="rounded-2xl border border-neutral-200 bg-white/80 p-3 shadow-sm">
@@ -421,6 +440,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         fontKey={fontKey}
                       />
                     </div>
+              <div className="grid md:grid-cols-2 gap-4 items-start mt-4">
+                <div className="space-y-3">
+                  <div className={formRowClass}>
+                    <label className={formLabelClass}>文字</label>
+                    <input
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      className="border rounded px-3 py-2 w-full sm:w-60"
+                      placeholder="縦4文字／横は自動改行"
+                    />
                   </div>
                 </div>
 
@@ -452,6 +481,27 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                       <Pill tone="amber" active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
                       <Pill tone="amber" active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
                     </div>
+                  <div className={formRowClass}>
+                    <label className={formLabelClass}>レイアウト</label>
+
+                    <Pill tone="emerald" active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                    <Pill tone="emerald" active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+
+                  </div>
+
+                  <div className={formRowClass}>
+                    <label className={formLabelClass}>フォント</label>
+
+                    <Pill tone="amber" active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
+                    <Pill tone="amber" active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                    <Pill tone="amber" active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+
+                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
+                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+
                   </div>
 
                   <div className="space-y-2">
@@ -465,6 +515,17 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
                     {useUnifiedColor ? (
                       <div className="grid max-w-[360px] grid-cols-2 gap-2 sm:grid-cols-3 sm:pl-24">
+
+                      <Pill tone="slate" active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
+                      <Pill tone="slate" active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
+
+                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
+                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
+
+                    </div>
+
+                    {useUnifiedColor ? (
+                      <div className="grid grid-cols-2 gap-2 max-w-[420px] sm:grid-cols-3 sm:pl-24">
                         {COLOR_LIST.map((c) => (
                           <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
                             {renderDot(c.css)}
@@ -476,7 +537,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                       <div className="space-y-2 sm:pl-24">
                         {splitChars(text || "麻雀").map((ch, idx) => (
                           <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+
                             <div className="w-8 text-center text-sm font-medium text-neutral-600">{ch}</div>
+                            <div className="w-6 text-center text-sm">{ch}</div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                               {COLOR_LIST.map((c) => (
                                 <Pill
@@ -500,6 +563,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <div className="text-[12px] text-neutral-500 sm:pl-24">※ 他の色をご希望の場合は備考欄に記載ください。</div>
                   </div>
 
+//<<<<<<< codex/add-responsible-response-implementation-zq64mc
+//=======
+                  {/* 備考 */}
+//>>>>>>> main
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <label className={`${formLabelClass} sm:mt-2`}>備考</label>
                     <textarea
