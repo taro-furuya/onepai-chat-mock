@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export type Layout = "vertical" | "horizontal";
 export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
@@ -80,11 +80,23 @@ export default function NameTilePreview(props: {
 
   const chars = useMemo(() => Array.from(text || ""), [text]);
   const groups = useMemo(() => splitTwoLines(chars), [chars]);
+  const groupOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let running = 0;
+    groups.forEach((group) => {
+      offsets.push(running);
+      running += group.length;
+    });
+    return offsets;
+  }, [groups]);
 
   const baseWidth = layout === "vertical" ? 360 : 580;
   const aspect = layout === "vertical" ? 21 / 28 : 28 / 21;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(baseWidth);
+  const tileInnerRef = useRef<HTMLDivElement | null>(null);
+  const textContentRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
 
   useEffect(() => {
     setWidth((prev) => Math.min(prev, baseWidth));
@@ -147,6 +159,64 @@ export default function NameTilePreview(props: {
       })();
 
   const colorAt = (index: number): ColorKey => (colors[index] ? colors[index] : "black");
+  const colorSignature = colors.join(",");
+  const textSignature = chars.join("");
+
+  useEffect(() => {
+    setScale(1);
+  }, [textSignature, layout, fontKey, colorSignature]);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const inner = tileInnerRef.current;
+      const content = textContentRef.current;
+      if (!inner || !content) return;
+
+      const innerWidth = inner.clientWidth;
+      const innerHeight = inner.clientHeight;
+      const contentWidth = content.offsetWidth;
+      const contentHeight = content.offsetHeight;
+
+      if (!innerWidth || !innerHeight || !contentWidth || !contentHeight) {
+        setScale(1);
+        return;
+      }
+
+      const next = Math.min(innerWidth / contentWidth, innerHeight / contentHeight, 1);
+      setScale((prev) => (Math.abs(prev - next) > 0.01 ? next : prev));
+    };
+
+    let raf = requestAnimationFrame(measure);
+
+    const inner = tileInnerRef.current;
+    const content = textContentRef.current;
+    if (!inner || !content) {
+      return () => cancelAnimationFrame(raf);
+    }
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(measure);
+      });
+      observer.observe(inner);
+      observer.observe(content);
+      return () => {
+        observer.disconnect();
+        cancelAnimationFrame(raf);
+      };
+    }
+
+    const handle = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(measure);
+    };
+    window.addEventListener("resize", handle);
+    return () => {
+      window.removeEventListener("resize", handle);
+      cancelAnimationFrame(raf);
+    };
+  }, [textSignature, layout, fontKey, colorSignature, width, height]);
 
   return (
     <div className="space-y-2" ref={containerRef} style={{ width: "100%", maxWidth: baseWidth, margin: "0 auto" }}>
@@ -163,53 +233,84 @@ export default function NameTilePreview(props: {
           padding,
         }}
       >
-        {layout === "vertical" ? (
-          <div style={{ display: "flex", gap: 8, flexDirection: "row-reverse" }}>
-            {groups.map((col, ci) => (
-              <div
-                key={ci}
-                style={{
-                  writingMode: "vertical-rl",
-                  textOrientation: "upright",
-                  fontFamily: FONT_STACKS[fontKey],
-                  fontSize,
-                  lineHeight: 1.05,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                {col.map((ch, i) => (
-                  <span key={i} style={colorStyle(colorAt(ci * (groups[0].length || 0) + i))}>
-                    {ch}
-                  </span>
-                ))}
-              </div>
-            ))}
+        <div
+          ref={tileInnerRef}
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: "center center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div ref={textContentRef}>
+              {layout === "vertical" ? (
+                <div style={{ display: "flex", gap: 8, flexDirection: "row-reverse" }}>
+                  {groups.map((col, ci) => (
+                    <div
+                      key={ci}
+                      style={{
+                        writingMode: "vertical-rl",
+                        textOrientation: "upright",
+                        fontFamily: FONT_STACKS[fontKey],
+                        fontSize,
+                        lineHeight: 1.05,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      {col.map((ch, i) => {
+                        const color = colorStyle(colorAt(groupOffsets[ci] + i));
+                        return (
+                          <span key={i} style={color}>
+                            {ch}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "92%", textAlign: "center" }}>
+                  {groups.map((row, ri) => (
+                    <div
+                      key={ri}
+                      style={{
+                        fontFamily: FONT_STACKS[fontKey],
+                        fontSize,
+                        lineHeight: 1.0,
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: 8,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {row.map((ch, i) => {
+                        const color = colorStyle(colorAt(groupOffsets[ri] + i));
+                        return (
+                          <span key={i} style={color}>
+                            {ch}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "92%", textAlign: "center" }}>
-            {groups.map((row, ri) => (
-              <div
-                key={ri}
-                style={{
-                  fontFamily: FONT_STACKS[fontKey],
-                  fontSize,
-                  lineHeight: 1.0,
-                  display: "flex",
-                  justifyContent: "center",
-                  gap: 8,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {row.map((ch, i) => (
-                  <span key={i} style={colorStyle(colorAt(ri * (groups[0].length || 0) + i))}>
-                    {ch}
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
       </div>
 
       <p className="text-xs text-neutral-500 text-center">
