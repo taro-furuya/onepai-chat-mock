@@ -138,7 +138,7 @@ export default function NameTilePreview(props: {
     const handle = () => update(el.clientWidth || baseWidth);
     window.addEventListener("resize", handle);
     return () => window.removeEventListener("resize", handle);
-  }, [widthCeiling, minWidth]);
+  }, [widthCeiling, minWidth, baseWidth]);
 
   const height = Math.round(width / aspect);
   const padding = 10;
