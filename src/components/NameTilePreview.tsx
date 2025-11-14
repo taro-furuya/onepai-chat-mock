@@ -38,8 +38,19 @@ export default function NameTilePreview(props: {
   unifiedColor: ColorKey;
   perCharColors: ColorKey[];
   fontKey?: "ta-fuga-fude" | "gothic" | "mincho";
+  maxWidth?: number;
+  minWidth?: number;
 }) {
-  const { text, layout, useUnifiedColor, unifiedColor, perCharColors, fontKey = "ta-fuga-fude" } = props;
+  const {
+    text,
+    layout,
+    useUnifiedColor,
+    unifiedColor,
+    perCharColors,
+    fontKey = "ta-fuga-fude",
+    maxWidth,
+    minWidth = 200,
+  } = props;
 
   // === Typekit を onload で読み込み（onreadystatechange は使用しない） ===
   useEffect(() => {
@@ -61,7 +72,7 @@ export default function NameTilePreview(props: {
       h.classList.add("wf-inactive");
     }, config.scriptTimeout);
 
-    const firstScript = d.getElementsByTagName("script")[0];
+    const firstScript = d.getElementsByTagName("script")[0] ?? null;
     const tk = d.createElement("script");
 
     h.classList.add("wf-loading");
@@ -75,7 +86,11 @@ export default function NameTilePreview(props: {
       } catch {}
     };
 
-    firstScript.parentNode?.insertBefore(tk, firstScript);
+    if (firstScript?.parentNode) {
+      firstScript.parentNode.insertBefore(tk, firstScript);
+    } else {
+      d.head?.appendChild(tk);
+    }
   }, []);
 
   const chars = useMemo(() => Array.from(text || ""), [text]);
@@ -91,27 +106,28 @@ export default function NameTilePreview(props: {
   }, [groups]);
 
   const baseWidth = layout === "vertical" ? 360 : 580;
+  const widthCeiling = Math.max(minWidth, Math.min(maxWidth ?? baseWidth, baseWidth));
   const aspect = layout === "vertical" ? 21 / 28 : 28 / 21;
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState(baseWidth);
+  const [width, setWidth] = useState(widthCeiling);
   const tileInnerRef = useRef<HTMLDivElement | null>(null);
   const textContentRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
-    setWidth((prev) => Math.min(prev, baseWidth));
-  }, [baseWidth]);
+    setWidth((prev) => Math.min(prev, widthCeiling));
+  }, [widthCeiling]);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const update = (nextWidth: number) => {
-      const clamped = Math.max(200, Math.min(baseWidth, Math.round(nextWidth)));
+      const clamped = Math.max(minWidth, Math.min(widthCeiling, Math.round(nextWidth)));
       setWidth(clamped);
     };
 
-    update(el.clientWidth || baseWidth);
+    update(el.clientWidth || widthCeiling);
 
     if (typeof ResizeObserver !== "undefined") {
       const observer = new ResizeObserver((entries) => {
@@ -126,7 +142,7 @@ export default function NameTilePreview(props: {
     const handle = () => update(el.clientWidth || baseWidth);
     window.addEventListener("resize", handle);
     return () => window.removeEventListener("resize", handle);
-  }, [baseWidth]);
+  }, [widthCeiling, minWidth, baseWidth]);
 
   const height = Math.round(width / aspect);
   const padding = 10;
@@ -219,7 +235,7 @@ export default function NameTilePreview(props: {
   }, [textSignature, layout, fontKey, colorSignature, width, height]);
 
   return (
-    <div className="space-y-2" ref={containerRef} style={{ width: "100%", maxWidth: baseWidth, margin: "0 auto" }}>
+    <div className="space-y-2" ref={containerRef} style={{ width: "100%", maxWidth: widthCeiling, margin: "0 auto" }}>
       <div
         className="mx-auto select-none shadow-[0_8px_20px_rgba(0,0,0,.08)] bg-white"
         style={{

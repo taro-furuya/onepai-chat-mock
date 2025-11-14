@@ -28,6 +28,7 @@ const splitChars = (s: string) => Array.from(s || "");
 const suitLabel = (s: "manzu" | "souzu" | "pinzu") => (s === "manzu" ? "萬子" : s === "souzu" ? "索子" : "筒子");
 const containerStyle: React.CSSProperties = { maxWidth: "min(1024px, 92vw)", margin: "0 auto" };
 const formRowClass = "flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3";
+const formRowContentClass = "flex flex-wrap gap-2";
 const formLabelClass = "text-sm font-medium sm:w-24";
 const BOTTOM_BAR_HEIGHT = 76;
 
@@ -116,15 +117,25 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   /** フルセットでは「名前入れ」を非表示 → 自動で切替 */
   useEffect(() => {
-    if (flow === "fullset" && designType === "name_print") setDesignType("bring_own");
-    setOriginalSub(flow === "fullset" ? "fullset" : "single");
+    setOriginalSub((prev) => {
+      const next = flow === "fullset" ? "fullset" : "single";
+      return prev === next ? prev : next;
+    });
+
     if (flow === "regular") {
-      setVariant("default");
-      if (designType !== "name_print") setDesignType("name_print"); // regularでは影響しないが整合のため
-    } else if (variant === "default") {
-      setVariant("standard");
+      setVariant((prev) => (prev === "default" ? prev : "default"));
+      setDesignType((prev) => (prev === "name_print" ? prev : "name_print"));
+      return;
     }
-  }, [flow]); // eslint-disable-line
+
+    if (variant === "default") {
+      setVariant((prev) => (prev === "default" ? "standard" : prev));
+    }
+
+    if (flow === "fullset") {
+      setDesignType((prev) => (prev === "name_print" ? "bring_own" : prev));
+    }
+  }, [flow, variant, designType]);
 
   /** ----- 単価・オプション内訳（共通ロジック） ----- */
   const est = computeEstimate({
@@ -143,11 +154,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   const productUnit = est.unit;
   const extraDetails = est.extras;
-  const optionsUnit = est.optionTotal;          // 単価（見積で qty 掛け）
-  const optionsSubtotal = est.optionTotal * qty;
   const discountRate = est.discountRate;
   const discountAmount = est.discountAmount;
-  const productSubtotal = est.unit * qty;
   const merchandiseSubtotal = est.merchandiseSubtotal;
   const shipping = est.shipping;
   const total = est.total;
@@ -202,9 +210,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     return "デザイン依頼（別途お見積り）";
   };
 
-  /** カート計算ヘルパ（各アイテムの小計：割引はここでは引かない） */
-  const lineTotal = (ci: CartItem) => ci.qty * ci.unit + ci.qty * ci.optionTotal;
-
   /** カート追加 */
   const addToCart = () => {
     const item: CartItem = {
@@ -254,104 +259,102 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       <section style={containerStyle} className="mt-6 space-y-6">
         {/* 1. カテゴリ */}
         <Card title="1. カテゴリを選択">
-  <div ref={selectRef} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-    {/* オリジナル麻雀牌 */}
-    <button
-      type="button"
-      onClick={() => {
-        setFlow(originalSub === "fullset" ? "fullset" : "original_single");
-      }}
-      className={`group relative text-left rounded-2xl border transition hover:shadow ${
-        flow !== "regular" ? "border-black" : "border-neutral-200"
-      } p-0 overflow-hidden`}
-    >
-      {/* 画像をカード全面に。上下左右の余白ナシ */}
-      <div className="relative h-[180px] md:h-[220px]">
-        <img
-          src={asset("category-original.jpg")}
-          alt="オリジナル麻雀牌"
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
+          <div ref={selectRef} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {/* オリジナル麻雀牌 */}
+            <button
+              type="button"
+              onClick={() => {
+                setFlow(originalSub === "fullset" ? "fullset" : "original_single");
+              }}
+              className={`group relative text-left rounded-2xl border transition hover:shadow ${
+                flow !== "regular" ? "border-black" : "border-neutral-200"
+              } p-0 overflow-hidden`}
+            >
+              <div className="relative h-[180px] md:h-[220px]">
+                <img
+                  src={asset("category-original.jpg")}
+                  alt="オリジナル麻雀牌"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
 
-      {/* テキストは内側に余白 */}
-      <div className="p-4">
-        <div className="text-base font-semibold">オリジナル麻雀牌</div>
-        <div className="text-xs text-neutral-500 mt-0.5">28mm / 30mm</div>
-        <div className="text-[12px] text-neutral-700 mt-2">
-          あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
-        </div>
-      </div>
-    </button>
+              <div className="p-4">
+                <div className="text-base font-semibold">オリジナル麻雀牌</div>
+                <div className="mt-0.5 text-xs text-neutral-500">28mm / 30mm</div>
+                <div className="mt-2 text-[12px] text-neutral-700">
+                  あなただけのオリジナル牌を作成。アクセサリーやギフトにも最適です。
+                </div>
+              </div>
+            </button>
 
-    {/* 通常牌（バラ売り） */}
-    <button
-      type="button"
-      onClick={() => setFlow("regular")}
-      className={`group relative text-left rounded-2xl border transition hover:shadow ${
-        flow === "regular" ? "border-black" : "border-neutral-200"
-      } p-0 overflow-hidden`}
-    >
-      <div className="relative h-[180px] md:h-[220px]">
-        <img
-          src={asset("category-regular.jpg")}
-          alt="通常牌（バラ売り）"
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
+            {/* 通常牌（バラ売り） */}
+            <button
+              type="button"
+              onClick={() => setFlow("regular")}
+              className={`group relative text-left rounded-2xl border transition hover:shadow ${
+                flow === "regular" ? "border-black" : "border-neutral-200"
+              } p-0 overflow-hidden`}
+            >
+              <div className="relative h-[180px] md:h-[220px]">
+                <img
+                  src={asset("category-regular.jpg")}
+                  alt="通常牌（バラ売り）"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
 
-      <div className="p-4">
-        <div className="text-base font-semibold">通常牌（バラ売り）</div>
-        <div className="text-xs text-neutral-500 mt-0.5">28mm</div>
-        <div className="text-[12px] text-neutral-700 mt-2">
-          通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
-        </div>
-      </div>
-    </button>
-  </div>
-
-  {/* 28/30mmや納期の注記（通常牌以外のときだけ表示） */}
-  {flow !== "regular" && (
-    <div className="mt-3">
-      <div className="flex flex-wrap gap-2">
-        <Pill
-          tone="indigo"
-          active={originalSub === "single"}
-          onClick={() => {
-            setOriginalSub("single");
-            setFlow("original_single");
-          }}
-        >
-          1つから
-        </Pill>
-        <Pill
-          tone="indigo"
-          active={originalSub === "fullset"}
-          onClick={() => {
-            setOriginalSub("fullset");
-            setFlow("fullset");
-          }}
-        >
-          フルセット
-        </Pill>
-      </div>
-
-      {/* 納期（選択時のみ表示） */}
-      <div className="mt-3 text-xs text-neutral-600 space-y-1">
-        {flow === "original_single" && <div>発送目安：<b>約2〜3週間</b></div>}
-        {flow === "fullset" && (
-          <div>
-            納期：<b>デザイン確定から2〜3か月</b>
+              <div className="p-4">
+                <div className="text-base font-semibold">通常牌（バラ売り）</div>
+                <div className="mt-0.5 text-xs text-neutral-500">28mm</div>
+                <div className="mt-2 text-[12px] text-neutral-700">
+                  通常牌も1枚からご購入いただけます。もちろんキーホルダー対応も！
+                </div>
+              </div>
+            </button>
           </div>
-        )}
-      </div>
-    </div>
-  )}
-</Card>
+
+          {/* 28/30mmや納期の注記（通常牌以外のときだけ表示） */}
+          {flow !== "regular" && (
+            <div className="mt-3">
+              <div className="flex flex-wrap gap-2">
+                <Pill
+                  tone="indigo"
+                  active={originalSub === "single"}
+                  onClick={() => {
+                    setOriginalSub("single");
+                    setFlow("original_single");
+                  }}
+                >
+                  1つから
+                </Pill>
+                <Pill
+                  tone="indigo"
+                  active={originalSub === "fullset"}
+                  onClick={() => {
+                    setOriginalSub("fullset");
+                    setFlow("fullset");
+                  }}
+                >
+                  フルセット
+                </Pill>
+              </div>
+
+              {/* 納期（選択時のみ表示） */}
+              <div className="mt-3 space-y-1 text-xs text-neutral-600">
+                {flow === "original_single" && <div>発送目安：<b>約2〜3週間</b></div>}
+                {flow === "fullset" && (
+                  <div>
+                    納期：<b>デザイン確定から2〜3か月</b>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
 
 
         {/* 2. 分岐 */}
@@ -370,15 +373,6 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <Pill tone="emerald" active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
                   <Pill tone="emerald" active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
                   <Pill tone="emerald" active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
-                  <Pill active={regularBack === "yellow"} onClick={() => setRegularBack("yellow")}>黄色</Pill>
-                  <Pill active={regularBack === "blue"} onClick={() => setRegularBack("blue")}>青色</Pill>
-                </div>
-                <div className={formRowClass}>
-                  <label className={formLabelClass}>種別</label>
-                  <Pill active={regularSuit === "honor"} onClick={() => setRegularSuit("honor")}>字牌</Pill>
-                  <Pill active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
-                  <Pill active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
-                  <Pill active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
                 </div>
                 {regularSuit === "honor" ? (
                   <div className={formRowClass}>
@@ -407,64 +401,80 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* デザイン方式 */}
             <div className="flex flex-wrap gap-2">
               {flow !== "fullset" && (
-                <Pill tone="rose" active={designType === "name_print"} onClick={() => setDesignType("name_print")}>名前入れ</Pill>
+                <Pill tone="rose" active={designType === "name_print"} onClick={() => setDesignType("name_print")}>
+                  名前入れ
+                </Pill>
               )}
-              <Pill tone="rose" active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>デザイン持ち込み</Pill>
-              <Pill tone="rose" active={designType === "commission"} onClick={() => setDesignType("commission")}>デザイン依頼</Pill>
+              <Pill tone="rose" active={designType === "bring_own"} onClick={() => setDesignType("bring_own")}>
+                デザイン持ち込み
+              </Pill>
+              <Pill tone="rose" active={designType === "commission"} onClick={() => setDesignType("commission")}>
+                デザイン依頼
+              </Pill>
             </div>
 
             {/* 名前入れ */}
             {designType === "name_print" && (
-              <div className="grid md:grid-cols-2 gap-4 items-start mt-4">
-                <div className="space-y-3">
-                  <div className={formRowClass}>
-                    <label className={formLabelClass}>文字</label>
-                    <input
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      className="border rounded px-3 py-2 w-full sm:w-60"
-                      placeholder="縦4文字／横は自動改行"
-                    />
+              <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:items-start">
+                <div className="order-1 sticky top-16 md:order-none md:top-24">
+                  <div className="mx-auto w-full max-w-[210px] sm:max-w-[230px] md:max-w-[240px] lg:max-w-[260px]">
+                    <div className="rounded-2xl border border-neutral-200 bg-white/90 p-3 shadow-lg">
+                      <div className="mb-2 text-xs font-semibold tracking-wide text-neutral-500">プレビュー</div>
+                      <NameTilePreview
+                        text={text || "麻雀"}
+                        layout={layout}
+                        useUnifiedColor={useUnifiedColor}
+                        unifiedColor={unifiedColor}
+                        perCharColors={perCharColors}
+                        fontKey={fontKey}
+                        maxWidth={240}
+                        minWidth={160}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="order-2 space-y-4 md:order-none">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500">文字</label>
+                    <div className="mt-2 w-full sm:w-60">
+                      <input
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-sm"
+                        placeholder="縦4文字／横は自動改行"
+                      />
+                    </div>
                   </div>
 
-                  <div className={formRowClass}>
-                    <label className={formLabelClass}>レイアウト</label>
+                  <fieldset className="rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4">
+                    <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">レイアウト</legend>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Pill tone="emerald" active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
+                      <Pill tone="emerald" active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+                    </div>
+                  </fieldset>
 
-                    <Pill tone="emerald" active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
-                    <Pill tone="emerald" active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
-                    <Pill active={layout === "vertical"} onClick={() => setLayout("vertical")}>縦</Pill>
-                    <Pill active={layout === "horizontal"} onClick={() => setLayout("horizontal")}>横</Pill>
+                  <fieldset className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4">
+                    <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-amber-700">フォント</legend>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Pill tone="amber" active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>
+                        萬子風
+                      </Pill>
+                      <Pill tone="amber" active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
+                      <Pill tone="amber" active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
+                    </div>
+                  </fieldset>
 
-                  </div>
-
-                  <div className={formRowClass}>
-                    <label className={formLabelClass}>フォント</label>
-
-                    <Pill tone="amber" active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
-                    <Pill tone="amber" active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
-                    <Pill tone="amber" active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
-
-                    <Pill active={fontKey === "ta-fuga-fude"} onClick={() => setFontKey("ta-fuga-fude")}>萬子風</Pill>
-                    <Pill active={fontKey === "gothic"} onClick={() => setFontKey("gothic")}>ゴシック</Pill>
-                    <Pill active={fontKey === "mincho"} onClick={() => setFontKey("mincho")}>明朝</Pill>
-
-                  </div>
-
-                  {/* 色指定 */}
-                  <div className="space-y-2">
-                    <div className={formRowClass}>
-                      <label className={formLabelClass}>色指定</label>
-
+                  <fieldset className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+                    <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-700">色指定</legend>
+                    <div className="flex flex-wrap gap-2">
                       <Pill tone="slate" active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
                       <Pill tone="slate" active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
-
-                      <Pill active={useUnifiedColor} onClick={() => setUseUnifiedColor(true)}>一括指定</Pill>
-                      <Pill active={!useUnifiedColor} onClick={() => setUseUnifiedColor(false)}>1文字ずつ</Pill>
-
                     </div>
 
                     {useUnifiedColor ? (
-                      <div className="grid grid-cols-2 gap-2 max-w-[420px] sm:grid-cols-3 sm:pl-24">
+                      <div className="grid max-w-[360px] grid-cols-2 gap-2 sm:grid-cols-3">
                         {COLOR_LIST.map((c) => (
                           <Pill key={c.key} active={unifiedColor === c.key} onClick={() => setUnifiedColor(c.key)}>
                             {renderDot(c.css)}
@@ -473,11 +483,11 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         ))}
                       </div>
                     ) : (
-                      <div className="space-y-2 sm:pl-24">
+                      <div className="space-y-2">
                         {splitChars(text || "麻雀").map((ch, idx) => (
-                          <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                            <div className="w-6 text-center text-sm">{ch}</div>
-                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          <div key={idx} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/60 px-3 py-3 sm:flex-row sm:items-center sm:gap-3">
+                            <div className="text-sm font-medium text-neutral-600 sm:w-8 sm:text-center">{ch}</div>
+                            <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
                               {COLOR_LIST.map((c) => (
                                 <Pill
                                   key={c.key}
@@ -497,31 +507,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         ))}
                       </div>
                     )}
-                    <div className="text-[12px] text-neutral-500 sm:pl-24">※ 他の色をご希望の場合は備考欄に記載ください。</div>
-                  </div>
+                    <div className="text-[12px] text-neutral-500">※ 他の色をご希望の場合は備考欄に記載ください。</div>
+                  </fieldset>
 
-                  {/* 備考 */}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                    <label className={`${formLabelClass} sm:mt-2`}>備考</label>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500">備考</label>
                     <textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="border rounded-xl px-3 py-2 w-full h-40 md:h-48"
+                      className="mt-2 h-40 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 shadow-sm md:h-48"
                       placeholder="ご希望・注意点など（任意）"
-                    />
-                  </div>
-                </div>
-
-                {/* プレビュー（右側） */}
-                <div className="flex justify-center md:justify-end">
-                  <div className="max-w-[460px] md:max-w-[420px]">
-                    <NameTilePreview
-                      text={text || "麻雀"}
-                      layout={layout}
-                      useUnifiedColor={useUnifiedColor}
-                      unifiedColor={unifiedColor}
-                      perCharColors={perCharColors}
-                      fontKey={fontKey}
                     />
                   </div>
                 </div>
