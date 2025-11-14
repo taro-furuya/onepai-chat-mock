@@ -87,6 +87,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   const [layout, setLayout] = useState<Layout>("vertical");
   const [fontKey, setFontKey] = useState<FontKey>("ta-fuga-fude");
   const [note, setNote] = useState("");
+  const previewFrameStyle: React.CSSProperties =
+    layout === "horizontal"
+      ? { maxWidth: "min(520px, calc(100vw - 1.5rem))" }
+      : { maxWidth: "min(360px, calc(100vw - 2.5rem))" };
+  const previewSizeProps: { minWidth: number; maxWidth?: number } =
+    layout === "horizontal" ? { minWidth: 220 } : { minWidth: 160, maxWidth: 240 };
 
   // 色
   const [useUnifiedColor, setUseUnifiedColor] = useState(true);
@@ -417,13 +423,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {designType === "name_print" && (
               <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:items-start">
                 <div className="order-1 md:sticky md:top-24 md:order-none">
-                  <div
-                    className={`mx-auto w-full ${
-                      layout === "horizontal"
-                        ? "max-w-[260px] sm:max-w-[300px]"
-                        : "max-w-[210px] sm:max-w-[230px]"
-                    } md:max-w-[260px] lg:max-w-[280px]`}
-                  >
+                  <div className="mx-auto w-full md:max-w-[260px] lg:max-w-[280px]" style={previewFrameStyle}>
                     <div className="rounded-2xl border border-neutral-200 bg-white/90 p-3 shadow-lg">
                       <div className="mb-2 text-xs font-semibold tracking-wide text-neutral-500">プレビュー</div>
                       <NameTilePreview
@@ -433,8 +433,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         unifiedColor={unifiedColor}
                         perCharColors={perCharColors}
                         fontKey={fontKey}
-                        maxWidth={layout === "horizontal" ? 300 : 240}
-                        minWidth={layout === "horizontal" ? 180 : 160}
+                        {...previewSizeProps}
                       />
                     </div>
                   </div>
