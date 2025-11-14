@@ -417,7 +417,13 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {designType === "name_print" && (
               <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:items-start">
                 <div className="order-1 md:sticky md:top-24 md:order-none">
-                  <div className="mx-auto w-full max-w-[210px] sm:max-w-[230px] md:max-w-[240px] lg:max-w-[260px]">
+                  <div
+                    className={`mx-auto w-full ${
+                      layout === "horizontal"
+                        ? "max-w-[260px] sm:max-w-[300px]"
+                        : "max-w-[210px] sm:max-w-[230px]"
+                    } md:max-w-[260px] lg:max-w-[280px]`}
+                  >
                     <div className="rounded-2xl border border-neutral-200 bg-white/90 p-3 shadow-lg">
                       <div className="mb-2 text-xs font-semibold tracking-wide text-neutral-500">プレビュー</div>
                       <NameTilePreview
@@ -427,8 +433,8 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         unifiedColor={unifiedColor}
                         perCharColors={perCharColors}
                         fontKey={fontKey}
-                        maxWidth={240}
-                        minWidth={160}
+                        maxWidth={layout === "horizontal" ? 300 : 240}
+                        minWidth={layout === "horizontal" ? 180 : 160}
                       />
                     </div>
                   </div>
