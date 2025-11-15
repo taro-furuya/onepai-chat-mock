@@ -7,12 +7,12 @@ export default function Hero({
   onSecondary,
 }: { onPrimary: () => void; onSecondary: () => void }) {
   return (
-    <div className="relative w-full bg-white">
+    <div className="relative w-full bg-white overflow-hidden">
       <div className="w-full h-[420px] md:h-[560px]">
         <img
           src={asset("hero-onepai.jpg")}   // ← ここだけ
           alt="オンリーワンなオリジナル麻雀牌なら、one牌"
-          className="w-full h-full object-contain rounded-none"
+          className="w-full h-full object-cover rounded-none"
           loading="eager"
           decoding="async"
         />

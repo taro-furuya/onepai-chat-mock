@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
 import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview";
@@ -38,6 +38,8 @@ const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   { key: "blue", label: "ブルー", css: "#1e5ad7" },
   { key: "green", label: "グリーン", css: "#2e7d32" },
   { key: "pink", label: "ピンク", css: "#e24a86" },
+  { key: "gold", label: "ゴールド", css: "#d8ad3d" },
+  { key: "silver", label: "シルバー", css: "#b4bcc2" },
   {
     key: "rainbow",
     label: "レインボー",
@@ -63,7 +65,7 @@ const renderDot = (css: string) => {
 };
 
 type StepperFieldProps = {
-  value: number;
+  value: string;
   onInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onIncrement: () => void;
   onDecrement: () => void;
@@ -161,19 +163,66 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   // 数量
   const [qty, setQty] = useState(1);
+  const [qtyInput, setQtyInput] = useState("1");
 
   // 持ち込み
   const [bringOwnColorCount, setBringOwnColorCount] = useState<number>(1);
+  const [bringOwnColorInput, setBringOwnColorInput] = useState("1");
   const [files, setFiles] = useState<{ id: string; src: string; name: string; type: "image" | "file" }[]>([]);
 
   // オプション（数量はメイン数量と独立）
   const [optKeyholderQty, setOptKeyholderQty] = useState<number>(0);
   const [optKiribakoQty, setOptKiribakoQty] = useState<number>(0);
+  const [optKeyholderInput, setOptKeyholderInput] = useState("0");
+  const [optKiribakoInput, setOptKiribakoInput] = useState("0");
 
   // ミニカート
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [miniCartOpen, setMiniCartOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<"info" | "error">("info");
+  const toastTimerRef = useRef<number | null>(null);
+
+  const syncKeyholderForQty = useCallback((nextQty: number) => {
+    setOptKeyholderQty((prev) => Math.min(prev, nextQty));
+    setOptKeyholderInput((prev) => {
+      if (prev === "") return prev;
+      const parsed = Number(prev);
+      if (!Number.isFinite(parsed)) return prev;
+      const normalized = Math.max(0, Math.floor(parsed));
+      const clamped = Math.min(normalized, nextQty);
+      return clamped === normalized ? prev : String(clamped);
+    });
+  }, []);
+
+  const showToast = useCallback(
+    (message: string, tone: "info" | "error" = "info") => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+      setToastTone(tone);
+      setToast(message);
+      const duration = tone === "error" ? 2400 : 1500;
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast(null);
+        toastTimerRef.current = null;
+      }, duration);
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    syncKeyholderForQty(qty);
+  }, [qty, syncKeyholderForQty]);
 
   /** フルセットでは「名前入れ」を非表示 → 自動で切替 */
   useEffect(() => {
@@ -272,6 +321,28 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
   /** カート追加 */
   const addToCart = () => {
+    const qtyValueRaw = qtyInput.trim();
+    const qtyParsed = Number(qtyValueRaw);
+    if (!qtyValueRaw || !Number.isFinite(qtyParsed) || qtyParsed < 1) {
+      showToast("数量は1以上で入力してください", "error");
+      return;
+    }
+
+    if (designType === "bring_own") {
+      const bringOwnRaw = bringOwnColorInput.trim();
+      const bringOwnParsed = Number(bringOwnRaw);
+      if (!bringOwnRaw || !Number.isFinite(bringOwnParsed) || bringOwnParsed < 1) {
+        showToast("色数は1以上で入力してください", "error");
+        return;
+      }
+    }
+
+    const kiribakoVisible = (flow === "original_single" && variant === "standard") || flow === "regular";
+    if (optKeyholderInput.trim() === "" || (kiribakoVisible && optKiribakoInput.trim() === "")) {
+      showToast("未入力のオプション数量があります", "error");
+      return;
+    }
+
     const item: CartItem = {
       id: cryptoRandom(),
       flow,
@@ -286,8 +357,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
     };
     setCartItems((prev) => [...prev, item]);
     setMiniCartOpen(true);
-    setToast("カートに追加しました");
-    setTimeout(() => setToast(null), 1200);
+    showToast("カートに追加しました");
   };
 
   const removeFromCart = (id: string) =>
@@ -629,17 +699,27 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <label className="text-sm">色数</label>
                     <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
                       <StepperField
-                        value={bringOwnColorCount}
+                        value={bringOwnColorInput}
                         onInput={(e) => {
-                          const v = Number(e.target.value);
-                          setBringOwnColorCount(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+                          const raw = e.target.value;
+                          setBringOwnColorInput(raw);
+                          if (raw === "") return;
+                          const parsed = Number(raw);
+                          if (!Number.isFinite(parsed)) return;
+                          const next = Math.max(1, Math.floor(parsed));
+                          setBringOwnColorCount(next);
+                          if (String(next) !== raw) setBringOwnColorInput(String(next));
                         }}
-                        onIncrement={() =>
-                          setBringOwnColorCount((prev) => (Number.isFinite(prev) ? prev + 1 : 1))
-                        }
-                        onDecrement={() =>
-                          setBringOwnColorCount((prev) => Math.max(1, (Number.isFinite(prev) ? prev : 1) - 1))
-                        }
+                        onIncrement={() => {
+                          const next = bringOwnColorCount + 1;
+                          setBringOwnColorCount(next);
+                          setBringOwnColorInput(String(next));
+                        }}
+                        onDecrement={() => {
+                          const next = Math.max(1, bringOwnColorCount - 1);
+                          setBringOwnColorCount(next);
+                          setBringOwnColorInput(String(next));
+                        }}
                         className="w-full sm:w-28"
                         min={1}
                       />
@@ -730,13 +810,30 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         <Card title="4. 数量">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <StepperField
-              value={qty}
+              value={qtyInput}
               onInput={(e) => {
-                const v = Number(e.target.value);
-                setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
+                const raw = e.target.value;
+                setQtyInput(raw);
+                if (raw === "") return;
+                const parsed = Number(raw);
+                if (!Number.isFinite(parsed)) return;
+                const next = Math.max(1, Math.floor(parsed));
+                setQty(next);
+                syncKeyholderForQty(next);
+                if (String(next) !== raw) setQtyInput(String(next));
               }}
-              onIncrement={() => setQty((prev) => Math.max(1, prev + 1))}
-              onDecrement={() => setQty((prev) => Math.max(1, prev - 1))}
+              onIncrement={() => {
+                const next = qty + 1;
+                setQty(next);
+                setQtyInput(String(next));
+                syncKeyholderForQty(next);
+              }}
+              onDecrement={() => {
+                const next = Math.max(1, qty - 1);
+                setQty(next);
+                setQtyInput(String(next));
+                syncKeyholderForQty(next);
+              }}
               className="w-full sm:w-32"
               min={1}
             />
@@ -756,20 +853,28 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 <div className="font-medium">キーホルダー</div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                   <StepperField
-                    value={optKeyholderQty}
+                    value={optKeyholderInput}
                     onInput={(e) => {
-                      const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                      setOptKeyholderQty(Math.min(v, qty)); // メイン数量より多くは不可
+                      const raw = e.target.value;
+                      setOptKeyholderInput(raw);
+                      if (raw === "") return;
+                      const parsed = Number(raw);
+                      if (!Number.isFinite(parsed)) return;
+                      const normalized = Math.max(0, Math.floor(parsed));
+                      const clamped = Math.min(normalized, qty);
+                      setOptKeyholderQty(clamped);
+                      if (String(clamped) !== raw) setOptKeyholderInput(String(clamped));
                     }}
-                    onIncrement={() =>
-                      setOptKeyholderQty((prev) => {
-                        const next = Number.isFinite(prev) ? prev + 1 : 0;
-                        return Math.min(next, qty);
-                      })
-                    }
-                    onDecrement={() =>
-                      setOptKeyholderQty((prev) => Math.max(0, (Number.isFinite(prev) ? prev : 0) - 1))
-                    }
+                    onIncrement={() => {
+                      const next = Math.min(qty, optKeyholderQty + 1);
+                      setOptKeyholderQty(next);
+                      setOptKeyholderInput(String(next));
+                    }}
+                    onDecrement={() => {
+                      const next = Math.max(0, optKeyholderQty - 1);
+                      setOptKeyholderQty(next);
+                      setOptKeyholderInput(String(next));
+                    }}
                     className="w-full sm:w-24"
                     min={0}
                     max={qty}
@@ -785,17 +890,27 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                     <div className="font-medium">桐箱（4枚用）</div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                       <StepperField
-                        value={optKiribakoQty}
+                        value={optKiribakoInput}
                         onInput={(e) => {
-                          const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                          setOptKiribakoQty(v);
+                          const raw = e.target.value;
+                          setOptKiribakoInput(raw);
+                          if (raw === "") return;
+                          const parsed = Number(raw);
+                          if (!Number.isFinite(parsed)) return;
+                          const next = Math.max(0, Math.floor(parsed));
+                          setOptKiribakoQty(next);
+                          if (String(next) !== raw) setOptKiribakoInput(String(next));
                         }}
-                        onIncrement={() =>
-                          setOptKiribakoQty((prev) => (Number.isFinite(prev) ? prev + 1 : 0))
-                        }
-                        onDecrement={() =>
-                          setOptKiribakoQty((prev) => Math.max(0, (Number.isFinite(prev) ? prev : 0) - 1))
-                        }
+                        onIncrement={() => {
+                          const next = optKiribakoQty + 1;
+                          setOptKiribakoQty(next);
+                          setOptKiribakoInput(String(next));
+                        }}
+                        onDecrement={() => {
+                          const next = Math.max(0, optKiribakoQty - 1);
+                          setOptKiribakoQty(next);
+                          setOptKiribakoInput(String(next));
+                        }}
                         className="w-full sm:w-24"
                         min={0}
                       />
@@ -1018,7 +1133,11 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
       {/* トースト */}
       {toast && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[88px] z-50 px-4 py-2 rounded-xl bg-black text-white text-sm shadow">
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 bottom-[88px] z-50 px-4 py-2 rounded-xl text-white text-sm shadow ${
+            toastTone === "error" ? "bg-rose-600" : "bg-black"
+          }`}
+        >
           {toast}
         </div>
       )}

@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export type Layout = "vertical" | "horizontal";
-export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
+export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "gold" | "silver" | "rainbow";
 
 const PALETTE: { key: ColorKey; css: string }[] = [
   { key: "black", css: "#0a0a0a" },
@@ -9,6 +9,8 @@ const PALETTE: { key: ColorKey; css: string }[] = [
   { key: "blue", css: "#1f57c3" },
   { key: "green", css: "#0d7a3a" },
   { key: "pink", css: "#e75480" },
+  { key: "gold", css: "#d8ad3d" },
+  { key: "silver", css: "#b4bcc2" },
   { key: "rainbow", css: "linear-gradient(180deg,#d10f1b,#ff7a00,#ffd400,#1bb34a,#1f57c3,#7a2bc2)" },
 ];
 
