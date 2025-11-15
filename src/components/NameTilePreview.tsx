@@ -33,6 +33,26 @@ const FONT_STACKS: Record<string, string> = {
   mincho: '"Yu Mincho", "Hiragino Mincho ProN", serif',
 };
 
+const isMobileDownloadRestricted = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iOS = /iPad|iPhone|iPod/.test(ua);
+  const androidMobile = /Android/.test(ua) && /Mobile/.test(ua);
+  return iOS || androidMobile;
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    if (!("toBlob" in canvas)) {
+      reject(new Error("canvas toBlob unsupported"));
+      return;
+    }
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("failed to export canvas"));
+    }, "image/png");
+  });
+
 export default function NameTilePreview(props: {
   text: string;
   layout: Layout;
@@ -243,6 +263,10 @@ export default function NameTilePreview(props: {
     if (downloading) return;
     setDownloading(true);
 
+    const mobileRestricted = typeof window !== "undefined" && isMobileDownloadRestricted();
+    const preOpenedWindow = mobileRestricted ? window.open("", "_blank") : null;
+    let exported = false;
+
     try {
       const currentWidth = Math.max(1, width || widthCeiling);
       const aspectRatio = aspect;
@@ -392,14 +416,79 @@ export default function NameTilePreview(props: {
         });
       }
 
-      const link = document.createElement("a");
-      link.href = canvas.toDataURL("image/png");
-      link.download = `onepai-preview-${Date.now()}.png`;
-      link.click();
+      const fileName = `onepai-preview-${Date.now()}.png`;
+      const dataUrl = canvas.toDataURL("image/png");
+
+      const nav = typeof navigator !== "undefined" ? (navigator as Navigator & {
+        canShare?: (data: any) => boolean;
+        share?: (data: any) => Promise<void>;
+      }) : null;
+
+      if (nav?.canShare && nav.share) {
+        try {
+          const blob = await canvasToBlob(canvas);
+          const file = new File([blob], fileName, { type: "image/png" });
+          if (nav.canShare({ files: [file] })) {
+            await nav.share({ files: [file], title: "one牌 プレビュー", text: "プレビュー画像" });
+            exported = true;
+            if (preOpenedWindow && !preOpenedWindow.closed) preOpenedWindow.close();
+          }
+        } catch (shareError) {
+          console.warn("Share API export fallback", shareError);
+        }
+      }
+
+      if (!exported) {
+        if (!mobileRestricted) {
+          const link = document.createElement("a");
+          link.href = dataUrl;
+          link.download = fileName;
+          link.rel = "noopener";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          exported = true;
+        } else {
+          try {
+            if (preOpenedWindow && !preOpenedWindow.closed) {
+              preOpenedWindow.document.title = "one牌 プレビュー";
+              const doc = preOpenedWindow.document;
+              doc.body.style.margin = "0";
+              doc.body.style.backgroundColor = "#111";
+              const img = doc.createElement("img");
+              img.src = dataUrl;
+              img.alt = "one牌 プレビュー";
+              img.style.display = "block";
+              img.style.width = "100%";
+              img.style.height = "auto";
+              img.style.objectFit = "contain";
+              doc.body.appendChild(img);
+            } else {
+              window.open(dataUrl, "_blank", "noopener");
+            }
+            exported = true;
+            window.setTimeout(() => {
+              window.alert("新しいタブにプレビュー画像を表示しました。長押しして保存してください。");
+            }, 200);
+          } catch (tabError) {
+            console.warn("Mobile export fallback failed", tabError);
+            if (preOpenedWindow && !preOpenedWindow.closed) {
+              preOpenedWindow.close();
+            }
+          }
+        }
+      }
+
+      if (!exported) {
+        throw new Error("preview export unavailable");
+      }
     } catch (error) {
       console.error(error);
       window.alert("プレビューの画像化に失敗しました。お手数ですが再度お試しください。");
     } finally {
+      if (!exported && preOpenedWindow && !preOpenedWindow.closed) {
+        preOpenedWindow.close();
+      }
       setDownloading(false);
     }
   }, [aspect, colors, downloading, fontKey, fontSize, groupOffsets, groups, padding, width, widthCeiling]);

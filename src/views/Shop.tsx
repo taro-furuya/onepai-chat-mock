@@ -6,6 +6,7 @@ import RegularTilePreview from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 import { computeEstimate, computeCartTotals, PRICING, type Flow } from "../utils/pricing";
 import { asset } from "../utils/asset";
+import JudgeMeWidget from "../components/JudgeMeWidget";
 
 /** ----------------- 型・定数 ----------------- */
 type FontKey = "ta-fuga-fude" | "gothic" | "mincho";
@@ -50,27 +51,6 @@ const CASE_STUDIES = [
     client: "麻雀プロ協会 様",
     outcome:
       "優勝チームのメンバー名を刻印した限定セットを授与。ライブ配信視聴者からの問い合わせが多数寄せられました。",
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    name: "麻雀カフェ 雀友",
-    role: "店舗オーナー様",
-    quote:
-      "周年イベントに合わせてオリジナル牌を製作しました。常連のお客様からも『ここでしか見られない』と大好評です。",
-  },
-  {
-    name: "企業ノベルティご担当者様",
-    role: "マーケティング",
-    quote:
-      "展示会で配布する記念品として依頼しました。短納期にもかかわらず丁寧に対応いただき、SNSでも話題になりました。",
-  },
-  {
-    name: "麻雀プロ協会",
-    role: "イベント事務局",
-    quote:
-      "大会賞品として名入れ牌を採用。選手の名前入りで特別感があり、表彰式がより華やかになりました。",
   },
 ];
 
@@ -1061,20 +1041,7 @@ const Shop: React.FC = () => {
         </Card>
 
         <Card title="口コミ">
-          <div className="space-y-4">
-            {TESTIMONIALS.map((item) => (
-              <blockquote key={`${item.name}-review`} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
-                    <div className="text-xs text-neutral-500">{item.role}</div>
-                  </div>
-                  <span aria-hidden className="text-2xl text-amber-400">★ ★ ★ ★ ★</span>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-neutral-700">{item.quote}</p>
-              </blockquote>
-            ))}
-          </div>
+          <JudgeMeWidget />
         </Card>
 
         <Card title="Q＆A">
