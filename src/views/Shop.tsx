@@ -62,6 +62,60 @@ const renderDot = (css: string) => {
   );
 };
 
+type StepperFieldProps = {
+  value: number;
+  onInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  className?: string;
+  min?: number;
+  max?: number;
+};
+
+const StepperField: React.FC<StepperFieldProps> = ({
+  value,
+  onInput,
+  onIncrement,
+  onDecrement,
+  className = "",
+  min,
+  max,
+}) => {
+  const wrapperClass = ["inline-flex overflow-hidden rounded-xl border bg-white", className].filter(Boolean).join(" ");
+  return (
+    <div className={wrapperClass}>
+      <input
+        type="number"
+        value={value}
+        onChange={onInput}
+        min={min}
+        max={max}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        className="w-full border-0 px-3 py-2 text-base focus:outline-none focus:ring-0"
+      />
+      <div className="flex flex-col border-l">
+        <button
+          type="button"
+          onClick={onIncrement}
+          className="flex-1 px-2 text-xs leading-tight hover:bg-neutral-50"
+          aria-label="数量を増やす"
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          onClick={onDecrement}
+          className="flex-1 px-2 text-xs leading-tight hover:bg-neutral-50"
+          aria-label="数量を減らす"
+        >
+          ▼
+        </button>
+      </div>
+    </div>
+  );
+};
+
 function cryptoRandom() {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     const arr = new Uint32Array(1);
@@ -574,16 +628,20 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <div>
                     <label className="text-sm">色数</label>
                     <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <input
-                        type="number"
+                      <StepperField
                         value={bringOwnColorCount}
-                        onChange={(e) => {
+                        onInput={(e) => {
                           const v = Number(e.target.value);
                           setBringOwnColorCount(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
                         }}
-                        className="border rounded px-3 py-2 w-full sm:w-28"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        onIncrement={() =>
+                          setBringOwnColorCount((prev) => (Number.isFinite(prev) ? prev + 1 : 1))
+                        }
+                        onDecrement={() =>
+                          setBringOwnColorCount((prev) => Math.max(1, (Number.isFinite(prev) ? prev : 1) - 1))
+                        }
+                        className="w-full sm:w-28"
+                        min={1}
                       />
                       <span className="text-xs text-neutral-600">※ 追加1色ごとに+¥200</span>
                     </div>
@@ -671,16 +729,16 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
         {/* 4. 数量 */}
         <Card title="4. 数量">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-              type="number"
+            <StepperField
               value={qty}
-              onChange={(e) => {
+              onInput={(e) => {
                 const v = Number(e.target.value);
                 setQty(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
               }}
-              className="border rounded px-3 py-2 w-full sm:w-28"
-              inputMode="numeric"
-              pattern="[0-9]*"
+              onIncrement={() => setQty((prev) => Math.max(1, prev + 1))}
+              onDecrement={() => setQty((prev) => Math.max(1, prev - 1))}
+              className="w-full sm:w-32"
+              min={1}
             />
             <div className="text-xs text-neutral-600">
               {flow === "original_single" && "※ 合計5個以上で10％OFF、10個以上で15％OFF"}
@@ -697,16 +755,24 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               <div className="flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="font-medium">キーホルダー</div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                  <input
-                    type="number"
+                  <StepperField
                     value={optKeyholderQty}
-                    onChange={(e) => {
+                    onInput={(e) => {
                       const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
                       setOptKeyholderQty(Math.min(v, qty)); // メイン数量より多くは不可
                     }}
-                    className="border rounded px-3 py-2 w-full sm:w-24"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
+                    onIncrement={() =>
+                      setOptKeyholderQty((prev) => {
+                        const next = Number.isFinite(prev) ? prev + 1 : 0;
+                        return Math.min(next, qty);
+                      })
+                    }
+                    onDecrement={() =>
+                      setOptKeyholderQty((prev) => Math.max(0, (Number.isFinite(prev) ? prev : 0) - 1))
+                    }
+                    className="w-full sm:w-24"
+                    min={0}
+                    max={qty}
                   />
                   <span>× ¥{fmt(PRICING.options.keyholder.priceIncl)}</span>
                 </div>
@@ -718,16 +784,20 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                   <div className="flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="font-medium">桐箱（4枚用）</div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                      <input
-                        type="number"
+                      <StepperField
                         value={optKiribakoQty}
-                        onChange={(e) => {
+                        onInput={(e) => {
                           const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
                           setOptKiribakoQty(v);
                         }}
-                        className="border rounded px-3 py-2 w-full sm:w-24"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        onIncrement={() =>
+                          setOptKiribakoQty((prev) => (Number.isFinite(prev) ? prev + 1 : 0))
+                        }
+                        onDecrement={() =>
+                          setOptKiribakoQty((prev) => Math.max(0, (Number.isFinite(prev) ? prev : 0) - 1))
+                        }
+                        className="w-full sm:w-24"
+                        min={0}
                       />
                       <span>× ¥{fmt(PRICING.options.kiribako_4.priceIncl)}</span>
                     </div>
@@ -808,7 +878,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
       <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
         <div style={{ ...containerStyle }} className="px-4 py-2">
           {/* 上段：合計サマリ */}
-          <div className="flex items-start justify-between gap-3 sm:h-[44px] sm:items-center">
+          <div className="flex items-end justify-between gap-3 sm:h-[44px] sm:items-center">
             <div className="text-sm">
               <div className="font-semibold">カート</div>
               <div className="text-neutral-600">
@@ -822,7 +892,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </div>
             </div>
 
-            <div className="text-xl font-bold whitespace-nowrap sm:text-2xl">
+            <div className="text-xl font-bold whitespace-nowrap leading-tight sm:text-2xl">
               合計 ¥{fmt(cartTotals.total)}
             </div>
           </div>
@@ -831,7 +901,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* 追加：購入手続きへ */}
             <button
               type="button"
-              className="w-full px-3 py-2 rounded-xl bg-black text-white sm:w-auto sm:px-5"
+              className="w-full px-2 py-2 rounded-xl bg-black text-white text-[13px] font-medium leading-tight whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
               onClick={() => setMiniCartOpen(true)}
             >
               購入手続きへ
@@ -840,7 +910,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* 既存：カートに追加 */}
             <button
               type="button"
-              className="w-full px-3 py-2 rounded-xl border sm:w-auto sm:px-4"
+              className="w-full px-2 py-2 rounded-xl border text-[13px] font-medium leading-tight whitespace-nowrap sm:w-auto sm:px-4 sm:text-sm"
               onClick={addToCart}
             >
               カートに追加
@@ -849,7 +919,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
             {/* アコーディオン開閉 */}
             <button
               type="button"
-              className="w-full px-3 py-2 rounded-xl bg-white border sm:w-auto sm:px-5"
+              className="w-full px-2 py-2 rounded-xl bg-white border text-[13px] font-medium leading-tight whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
               onClick={() => setMiniCartOpen((v) => !v)}
               aria-expanded={miniCartOpen}
               aria-controls="cart-accordion"
