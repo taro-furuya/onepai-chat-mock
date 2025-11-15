@@ -806,9 +806,9 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
 
       {/* ===== ボトムバー（画面下“全面”、中央寄せ） ===== */}
       <div className="fixed left-0 right-0 bottom-0 z-30 border-t bg-white/95 backdrop-blur">
-        <div style={{ ...containerStyle }} className="px-4 pt-2 pb-2">
+        <div style={{ ...containerStyle }} className="px-4 py-2">
           {/* 上段：合計サマリ */}
-          <div className="flex flex-col gap-3 sm:h-[44px] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start justify-between gap-3 sm:h-[44px] sm:items-center">
             <div className="text-sm">
               <div className="font-semibold">カート</div>
               <div className="text-neutral-600">
@@ -822,38 +822,40 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
               </div>
             </div>
 
-            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <div className="text-2xl font-bold sm:mr-1">合計 ¥{fmt(cartTotals.total)}</div>
-
-              {/* 追加：購入手続きへ */}
-              <button
-                type="button"
-                className="w-full px-5 py-2 rounded-xl bg-black text-white sm:w-auto"
-                onClick={() => setMiniCartOpen(true)}
-              >
-                購入手続きへ
-              </button>
-
-              {/* 既存：カートに追加 */}
-              <button
-                type="button"
-                className="w-full px-4 py-2 rounded-xl border sm:w-auto"
-                onClick={addToCart}
-              >
-                カートに追加
-              </button>
-
-              {/* アコーディオン開閉 */}
-              <button
-                type="button"
-                className="w-full px-5 py-2 rounded-xl bg-white border sm:w-auto"
-                onClick={() => setMiniCartOpen((v) => !v)}
-                aria-expanded={miniCartOpen}
-                aria-controls="cart-accordion"
-              >
-                {miniCartOpen ? "カートを閉じる" : "カートを表示"}
-              </button>
+            <div className="text-xl font-bold whitespace-nowrap sm:text-2xl">
+              合計 ¥{fmt(cartTotals.total)}
             </div>
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-2 sm:mt-3 sm:flex sm:justify-end sm:gap-3">
+            {/* 追加：購入手続きへ */}
+            <button
+              type="button"
+              className="w-full px-3 py-2 rounded-xl bg-black text-white sm:w-auto sm:px-5"
+              onClick={() => setMiniCartOpen(true)}
+            >
+              購入手続きへ
+            </button>
+
+            {/* 既存：カートに追加 */}
+            <button
+              type="button"
+              className="w-full px-3 py-2 rounded-xl border sm:w-auto sm:px-4"
+              onClick={addToCart}
+            >
+              カートに追加
+            </button>
+
+            {/* アコーディオン開閉 */}
+            <button
+              type="button"
+              className="w-full px-3 py-2 rounded-xl bg-white border sm:w-auto sm:px-5"
+              onClick={() => setMiniCartOpen((v) => !v)}
+              aria-expanded={miniCartOpen}
+              aria-controls="cart-accordion"
+            >
+              {miniCartOpen ? "カートを閉じる" : "カートを表示"}
+            </button>
           </div>
 
           {/* 下段：アコーディオン（開閉） */}
