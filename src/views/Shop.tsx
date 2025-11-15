@@ -636,7 +636,10 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         ))}
                       </div>
                     )}
-                    <div className="text-[12px] text-neutral-500">※ 他の色をご希望の場合は備考欄に記載ください。</div>
+                    <div className="space-y-1 text-[12px] text-neutral-500">
+                      <p>※ 他の色をご希望の場合は備考欄に記載ください。</p>
+                      <p>※2色以上選択の場合は、1色追加につき200円発生いたします。またレインボーは800円発生いたします。</p>
+                    </div>
                   </fieldset>
 
                   <div>
