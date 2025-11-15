@@ -32,6 +32,63 @@ const formRowContentClass = "flex flex-wrap gap-2";
 const formLabelClass = "text-sm font-medium sm:w-24";
 const BOTTOM_BAR_HEIGHT = 76;
 
+const CASE_STUDIES = [
+  {
+    title: "周年記念ノベルティ",
+    client: "麻雀カフェ 雀友 様",
+    outcome:
+      "常連向けの周年イベントで来店特典として配布。SNSハッシュタグ投稿が通常比で180％増加しました。",
+  },
+  {
+    title: "展示会ブース装飾",
+    client: "株式会社NEXT ENTERTAINMENT 様",
+    outcome:
+      "企業カラーをあしらった特大牌を制作し、来場者のフォトスポットとして活用。名刺交換率が1.6倍になりました。",
+  },
+  {
+    title: "プロリーグ記念セット",
+    client: "麻雀プロ協会 様",
+    outcome:
+      "優勝チームのメンバー名を刻印した限定セットを授与。ライブ配信視聴者からの問い合わせが多数寄せられました。",
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    name: "麻雀カフェ 雀友",
+    role: "店舗オーナー様",
+    quote:
+      "周年イベントに合わせてオリジナル牌を製作しました。常連のお客様からも『ここでしか見られない』と大好評です。",
+  },
+  {
+    name: "企業ノベルティご担当者様",
+    role: "マーケティング",
+    quote:
+      "展示会で配布する記念品として依頼しました。短納期にもかかわらず丁寧に対応いただき、SNSでも話題になりました。",
+  },
+  {
+    name: "麻雀プロ協会",
+    role: "イベント事務局",
+    quote:
+      "大会賞品として名入れ牌を採用。選手の名前入りで特別感があり、表彰式がより華やかになりました。",
+  },
+];
+
+const FAQS = [
+  {
+    q: "納期はどれくらいかかりますか？",
+    a: "デザイン確定後、単品は約2〜3週間、フルセットは約2〜3か月でお届けします。スケジュールに余裕を持ってご相談ください。",
+  },
+  {
+    q: "データ入稿はどの形式に対応していますか？",
+    a: "AI、PDF、PSD、PNG、JPGなど主要な形式に対応しています。解像度300dpi以上、白黒二値化したデータをご用意いただくと仕上がりが安定します。",
+  },
+  {
+    q: "複数色を使用したい場合の追加料金は？",
+    a: "2色目以降は1色追加ごとに¥200、レインボー指定は¥800の追加となります。お見積り時に自動で計算されます。",
+  },
+];
+
 const COLOR_LIST: { key: ColorKey; label: string; css: string }[] = [
   { key: "black", label: "ブラック", css: "#0a0a0a" },
   { key: "red", label: "レッド", css: "#d10f1b" },
@@ -128,10 +185,7 @@ function cryptoRandom() {
 }
 
 /** ----------------- 本体 ----------------- */
-const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
-  const selectRef = useRef<HTMLDivElement | null>(null);
-  const scrollToSelect = () => selectRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-
+const Shop: React.FC = () => {
   // フロー・バリアント
   const [flow, setFlow] = useState<Flow>("original_single");
   const [originalSub, setOriginalSub] = useState<"single" | "fullset">("single");
@@ -384,12 +438,12 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
   /** ----------------- UI ----------------- */
   return (
     <div style={{ paddingBottom: BOTTOM_BAR_HEIGHT + 16 }}>
-      <Hero onPrimary={scrollToSelect} onSecondary={gotoCorporate} />
+      <Hero />
 
       <section style={containerStyle} className="mt-6 space-y-6">
         {/* 1. カテゴリ */}
         <Card title="1. カテゴリを選択">
-          <div ref={selectRef} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {/* オリジナル麻雀牌 */}
             <button
               type="button"
@@ -557,6 +611,7 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                         unifiedColor={unifiedColor}
                         perCharColors={perCharColors}
                         fontKey={fontKey}
+                        downloadable
                         {...previewSizeProps}
                       />
                     </div>
@@ -988,6 +1043,50 @@ const Shop: React.FC<{ gotoCorporate: () => void }> = ({ gotoCorporate }) => {
                 購入手続きへ
               </button>
             </div>
+          </div>
+        </Card>
+      </section>
+
+      <section style={containerStyle} className="mt-12 space-y-6">
+        <Card title="事例紹介">
+          <div className="grid gap-4 md:grid-cols-3">
+            {CASE_STUDIES.map((item) => (
+              <div key={item.title} className="rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4 shadow-sm">
+                <div className="text-[13px] font-semibold text-emerald-600">{item.title}</div>
+                <div className="mt-1 text-base font-bold text-neutral-900">{item.client}</div>
+                <p className="mt-3 text-sm leading-relaxed text-neutral-700">{item.outcome}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="口コミ">
+          <div className="space-y-4">
+            {TESTIMONIALS.map((item) => (
+              <blockquote key={`${item.name}-review`} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
+                    <div className="text-xs text-neutral-500">{item.role}</div>
+                  </div>
+                  <span aria-hidden className="text-2xl text-amber-400">★ ★ ★ ★ ★</span>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-neutral-700">{item.quote}</p>
+              </blockquote>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Q＆A">
+          <div className="space-y-3">
+            {FAQS.map((faq) => (
+              <details key={faq.q} className="group rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+                <summary className="cursor-pointer select-none text-sm font-semibold text-neutral-800 group-open:text-black">
+                  {faq.q}
+                </summary>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-700">{faq.a}</p>
+              </details>
+            ))}
           </div>
         </Card>
       </section>

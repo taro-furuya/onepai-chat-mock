@@ -10,6 +10,7 @@ export default function Nav() {
         <div className="font-bold text-lg">one牌</div>
         <nav className="flex flex-wrap items-center gap-1 sm:gap-2">
           <button className={navBtn} onClick={() => goto("#/")}>ショップ</button>
+          <button className={navBtn} onClick={() => goto("#/cases")}>事例紹介</button>
           <button className={navBtn} onClick={() => goto("#/guidelines")}>入稿規定</button>
           <button className={navBtn} onClick={() => goto("#/corporate")}>法人問い合わせ</button>
         </nav>

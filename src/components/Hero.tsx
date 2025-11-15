@@ -2,10 +2,7 @@
 import React from "react";
 import { asset } from "../utils/asset";
 
-export default function Hero({
-  onPrimary,
-  onSecondary,
-}: { onPrimary: () => void; onSecondary: () => void }) {
+export default function Hero() {
   return (
     <div className="relative w-full bg-white">
       <div className="block w-full md:hidden">
@@ -27,21 +24,6 @@ export default function Hero({
           loading="eager"
           decoding="async"
         />
-      </div>
-
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:flex-row sm:justify-center sm:gap-3">
-        <button
-          onClick={onPrimary}
-          className="w-full max-w-[320px] px-6 py-3 rounded-2xl bg-black text-white shadow pointer-events-auto sm:w-auto"
-        >
-          作ってみる
-        </button>
-        <button
-          onClick={onSecondary}
-          className="w-full max-w-[320px] px-6 py-3 rounded-2xl bg-white shadow pointer-events-auto sm:w-auto"
-        >
-          法人問い合わせ
-        </button>
       </div>
     </div>
   );

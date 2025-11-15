@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export type Layout = "vertical" | "horizontal";
 export type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "gold" | "silver" | "rainbow";
@@ -42,6 +42,7 @@ export default function NameTilePreview(props: {
   fontKey?: "ta-fuga-fude" | "gothic" | "mincho";
   maxWidth?: number;
   minWidth?: number;
+  downloadable?: boolean;
 }) {
   const {
     text,
@@ -52,6 +53,7 @@ export default function NameTilePreview(props: {
     fontKey = "ta-fuga-fude",
     maxWidth,
     minWidth = 200,
+    downloadable = false,
   } = props;
 
   // === Typekit を onload で読み込み（onreadystatechange は使用しない） ===
@@ -115,6 +117,7 @@ export default function NameTilePreview(props: {
   const tileInnerRef = useRef<HTMLDivElement | null>(null);
   const textContentRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setWidth((prev) => Math.min(prev, widthCeiling));
@@ -236,8 +239,173 @@ export default function NameTilePreview(props: {
     };
   }, [textSignature, layout, fontKey, colorSignature, width, height]);
 
+  const downloadPreview = useCallback(async () => {
+    if (downloading) return;
+    setDownloading(true);
+
+    try {
+      const currentWidth = Math.max(1, width || widthCeiling);
+      const aspectRatio = aspect;
+      const deviceScale = Math.max(2, Math.round((window.devicePixelRatio || 1) * 2));
+      const exportWidth = Math.round(currentWidth * deviceScale);
+      const exportHeight = Math.round(exportWidth / aspectRatio);
+      const effectiveScale = exportWidth / currentWidth;
+      const exportPadding = Math.round(padding * effectiveScale);
+      const borderThickness = Math.max(2, Math.round(3 * effectiveScale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = exportWidth;
+      canvas.height = exportHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("preview export not supported");
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, exportWidth, exportHeight);
+      ctx.strokeStyle = "#111111";
+      ctx.lineWidth = borderThickness;
+      ctx.strokeRect(
+        borderThickness / 2,
+        borderThickness / 2,
+        exportWidth - borderThickness,
+        exportHeight - borderThickness
+      );
+
+      const textAreaX = borderThickness + exportPadding;
+      const textAreaY = borderThickness + exportPadding;
+      const textAreaWidth = exportWidth - (borderThickness + exportPadding) * 2;
+      const textAreaHeight = exportHeight - (borderThickness + exportPadding) * 2;
+
+      if ((document as any).fonts?.ready) {
+        try {
+          await (document as any).fonts.ready;
+        } catch {
+          // フォント読み込み失敗時も既定フォントで続行
+        }
+      }
+
+      const canvasFontSize = fontSize * effectiveScale;
+      const fontFamily = FONT_STACKS[fontKey];
+      ctx.font = `${canvasFontSize}px ${fontFamily}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const horizontalRowGap = 6 * effectiveScale;
+      const horizontalCharGap = 8 * effectiveScale;
+      const horizontalLineHeight = canvasFontSize;
+      const verticalColumnGap = 8 * effectiveScale;
+      const verticalCharGap = 6 * effectiveScale;
+      const verticalLineHeight = canvasFontSize * 1.05;
+
+      const rainbowStops = [
+        "#d10f1b",
+        "#ff7a00",
+        "#ffd400",
+        "#1bb34a",
+        "#1f57c3",
+        "#7a2bc2",
+      ];
+
+      const drawRainbow = (x: number, y: number, height: number) => {
+        const gradient = ctx.createLinearGradient(0, y - height / 2, 0, y + height / 2);
+        const step = 1 / Math.max(1, rainbowStops.length - 1);
+        rainbowStops.forEach((color, index) => gradient.addColorStop(step * index, color));
+        ctx.fillStyle = gradient;
+      };
+
+      if (layout === "horizontal") {
+        const rowMetrics = groups.map((row) => {
+          const widths = row.map((ch) => {
+            const m = ctx.measureText(ch);
+            return Math.max(m.width, canvasFontSize * 0.6);
+          });
+          const totalWidth = widths.reduce((sum, w) => sum + w, 0) + horizontalCharGap * Math.max(0, row.length - 1);
+          return { widths, totalWidth };
+        });
+
+        const totalHeight =
+          groups.length * horizontalLineHeight + horizontalRowGap * Math.max(0, groups.length - 1);
+        let rowY = textAreaY + textAreaHeight / 2 - totalHeight / 2 + horizontalLineHeight / 2;
+
+        groups.forEach((row, rowIndex) => {
+          const metrics = rowMetrics[rowIndex];
+          let rowX = textAreaX + textAreaWidth / 2 - metrics.totalWidth / 2;
+
+          row.forEach((ch, charIndex) => {
+            const charWidth = metrics.widths[charIndex];
+            const charCenterX = rowX + charWidth / 2;
+            const colorKey = colors[groupOffsets[rowIndex] + charIndex] ?? "black";
+            if (colorKey === "rainbow") {
+              drawRainbow(charCenterX, rowY, horizontalLineHeight);
+            } else {
+              ctx.fillStyle = cssOf(colorKey);
+            }
+            ctx.fillText(ch, charCenterX, rowY);
+            rowX += charWidth + horizontalCharGap;
+          });
+
+          rowY += horizontalLineHeight + horizontalRowGap;
+        });
+      } else {
+        const columnMetrics = groups.map((column) => {
+          const widths = column.map((ch) => {
+            const m = ctx.measureText(ch);
+            return Math.max(m.width, canvasFontSize * 0.7);
+          });
+          const columnWidth = Math.max(...widths, canvasFontSize * 0.85);
+          const columnHeight =
+            column.length * verticalLineHeight + verticalCharGap * Math.max(0, column.length - 1);
+          return { widths, columnWidth, columnHeight };
+        });
+
+        const totalWidth =
+          columnMetrics.reduce((sum, metric, index) => sum + metric.columnWidth + (index > 0 ? verticalColumnGap : 0), 0);
+        let cursorX = textAreaX + textAreaWidth / 2 + totalWidth / 2;
+
+        groups.forEach((column, columnIndex) => {
+          const metric = columnMetrics[columnIndex];
+          cursorX -= metric.columnWidth / 2;
+          let columnY =
+            textAreaY +
+            textAreaHeight / 2 -
+            metric.columnHeight / 2 +
+            verticalLineHeight / 2;
+
+          column.forEach((ch, charIndex) => {
+            const colorKey = colors[groupOffsets[columnIndex] + charIndex] ?? "black";
+            if (colorKey === "rainbow") {
+              drawRainbow(cursorX, columnY, verticalLineHeight);
+            } else {
+              ctx.fillStyle = cssOf(colorKey);
+            }
+            ctx.fillText(ch, cursorX, columnY);
+            columnY += verticalLineHeight;
+            if (charIndex < column.length - 1) {
+              columnY += verticalCharGap;
+            }
+          });
+
+          cursorX -= metric.columnWidth / 2;
+          if (columnIndex < groups.length - 1) {
+            cursorX -= verticalColumnGap;
+          }
+        });
+      }
+
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `onepai-preview-${Date.now()}.png`;
+      link.click();
+    } catch (error) {
+      console.error(error);
+      window.alert("プレビューの画像化に失敗しました。お手数ですが再度お試しください。");
+    } finally {
+      setDownloading(false);
+    }
+  }, [aspect, colors, downloading, fontKey, fontSize, groupOffsets, groups, padding, width, widthCeiling]);
+
   return (
-    <div className="space-y-2" ref={containerRef} style={{ width: "100%", maxWidth: widthCeiling, margin: "0 auto" }}>
+    <div className="space-y-3" ref={containerRef} style={{ width: "100%", maxWidth: widthCeiling, margin: "0 auto" }}>
       <div
         className="mx-auto select-none shadow-[0_8px_20px_rgba(0,0,0,.08)] bg-white"
         style={{
@@ -334,6 +502,19 @@ export default function NameTilePreview(props: {
       <p className="text-xs text-neutral-500 text-center">
         プレビューはイメージです。色味などは実際と異なる可能性がございます。
       </p>
+
+      {downloadable && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={downloadPreview}
+            disabled={downloading}
+            className="inline-flex items-center rounded-xl border border-neutral-200 bg-white px-4 py-2 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {downloading ? "画像生成中..." : "プレビューを画像で保存"}
+          </button>
+        </div>
+      )}
 
       <style>{`
         @font-face {
