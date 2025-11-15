@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import Card from "../components/Card";
 import Pill from "../components/Pill";
 import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview";
-import RegularTilePreview from "../components/RegularTilePreview";
+import RegularTilePreview, { RegularTileSelection } from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 import { computeEstimate, computeCartTotals, PRICING, type Flow } from "../utils/pricing";
 import { asset } from "../utils/asset";
@@ -26,7 +26,23 @@ type CartItem = {
 
 const fmt = (n: number) => new Intl.NumberFormat("ja-JP").format(n);
 const splitChars = (s: string) => Array.from(s || "");
-const suitLabel = (s: "manzu" | "souzu" | "pinzu") => (s === "manzu" ? "萬子" : s === "souzu" ? "索子" : "筒子");
+const SUIT_SUFFIX: Record<"manzu" | "souzu" | "pinzu", string> = {
+  manzu: "萬",
+  souzu: "索",
+  pinzu: "筒",
+};
+const KANJI_NUMBERS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"] as const;
+const RED_TILE_LABELS: Record<"manzu" | "souzu" | "pinzu", string> = {
+  manzu: "五萬（赤）",
+  souzu: "五索（赤）",
+  pinzu: "五筒（赤）",
+};
+const SEASON_TILE_LABELS: Record<"spring" | "summer" | "autumn" | "winter", string> = {
+  spring: "季節牌（春）",
+  summer: "季節牌（夏）",
+  autumn: "季節牌（秋）",
+  winter: "季節牌（冬）",
+};
 const containerStyle: React.CSSProperties = { maxWidth: "min(1024px, 92vw)", margin: "0 auto" };
 const formRowClass = "flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3";
 const formRowContentClass = "flex flex-wrap gap-2";
@@ -191,9 +207,13 @@ const Shop: React.FC = () => {
 
   // 通常牌
   const [regularBack, setRegularBack] = useState<"yellow" | "blue">("yellow");
-  const [regularSuit, setRegularSuit] = useState<"honor" | "manzu" | "souzu" | "pinzu">("honor");
-  const [regularNumber, setRegularNumber] = useState(1);
+  const [regularSuit, setRegularSuit] = useState<
+    "honor" | "manzu" | "souzu" | "pinzu" | "red" | "season"
+  >("honor");
+  const [regularNumber, setRegularNumber] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9>(1);
   const [regularHonor, setRegularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
+  const [regularRedSuit, setRegularRedSuit] = useState<"manzu" | "souzu" | "pinzu">("manzu");
+  const [regularSeason, setRegularSeason] = useState<"spring" | "summer" | "autumn" | "winter">("spring");
 
   // 数量
   const [qty, setQty] = useState(1);
@@ -209,6 +229,38 @@ const Shop: React.FC = () => {
   const [optKiribakoQty, setOptKiribakoQty] = useState<number>(0);
   const [optKeyholderInput, setOptKeyholderInput] = useState("0");
   const [optKiribakoInput, setOptKiribakoInput] = useState("0");
+
+  const regularSelection = useMemo<RegularTileSelection>(() => {
+    switch (regularSuit) {
+      case "honor":
+        return { kind: "honor", honor: regularHonor };
+      case "manzu":
+      case "souzu":
+      case "pinzu":
+        return { kind: "suit", suit: regularSuit, number: regularNumber };
+      case "red":
+        return { kind: "suit", suit: regularRedSuit, number: 5, red: true };
+      case "season":
+      default:
+        return { kind: "season", season: regularSeason };
+    }
+  }, [regularSuit, regularHonor, regularNumber, regularRedSuit, regularSeason]);
+
+  const regularTileLabel = useMemo(() => {
+    switch (regularSelection.kind) {
+      case "honor":
+        return regularSelection.honor;
+      case "season":
+        return SEASON_TILE_LABELS[regularSelection.season];
+      case "suit":
+        if (regularSelection.red) {
+          return RED_TILE_LABELS[regularSelection.suit];
+        }
+        return `${KANJI_NUMBERS[regularSelection.number - 1]}${SUIT_SUFFIX[regularSelection.suit]}`;
+      default:
+        return "通常牌";
+    }
+  }, [regularSelection]);
 
   // ミニカート
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -306,12 +358,11 @@ const Shop: React.FC = () => {
   /** タイトル */
   const productTitle = useMemo(() => {
     if (flow === "regular") {
-      const tile = regularSuit === "honor" ? regularHonor : `${regularNumber}${suitLabel(regularSuit)}`;
       const back = regularBack === "yellow" ? "黄色" : "青色";
-      return `通常牌（28mm／背面:${back}／${tile}）`;
+      return `通常牌（28mm／背面:${back}／${regularTileLabel}）`;
     }
     return `オリジナル麻雀牌（${variant === "standard" ? "28mm" : "30mm"}${flow === "fullset" ? "／フルセット" : ""}）`;
-  }, [flow, variant, regularBack, regularSuit, regularNumber, regularHonor]);
+  }, [flow, variant, regularBack, regularTileLabel]);
 
   /** ファイル選択 */
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -537,6 +588,8 @@ const Shop: React.FC = () => {
                   <Pill tone="emerald" active={regularSuit === "manzu"} onClick={() => setRegularSuit("manzu")}>萬子</Pill>
                   <Pill tone="emerald" active={regularSuit === "souzu"} onClick={() => setRegularSuit("souzu")}>索子</Pill>
                   <Pill tone="emerald" active={regularSuit === "pinzu"} onClick={() => setRegularSuit("pinzu")}>筒子</Pill>
+                  <Pill tone="emerald" active={regularSuit === "red"} onClick={() => setRegularSuit("red")}>赤牌</Pill>
+                  <Pill tone="emerald" active={regularSuit === "season"} onClick={() => setRegularSuit("season")}>季節牌</Pill>
                 </div>
                 {regularSuit === "honor" ? (
                   <div className={formRowClass}>
@@ -545,18 +598,44 @@ const Shop: React.FC = () => {
                       <Pill tone="rose" key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>{h}</Pill>
                     ))}
                   </div>
+                ) : regularSuit === "red" ? (
+                  <div className={formRowClass}>
+                    <label className={formLabelClass}>赤牌</label>
+                    {([
+                      { key: "manzu", label: RED_TILE_LABELS.manzu },
+                      { key: "pinzu", label: RED_TILE_LABELS.pinzu },
+                      { key: "souzu", label: RED_TILE_LABELS.souzu },
+                    ] as const).map(({ key, label }) => (
+                      <Pill tone="amber" key={key} active={regularRedSuit === key} onClick={() => setRegularRedSuit(key)}>{label}</Pill>
+                    ))}
+                  </div>
+                ) : regularSuit === "season" ? (
+                  <div className={formRowClass}>
+                    <label className={formLabelClass}>季節牌</label>
+                    {([
+                      { key: "spring", label: SEASON_TILE_LABELS.spring },
+                      { key: "summer", label: SEASON_TILE_LABELS.summer },
+                      { key: "autumn", label: SEASON_TILE_LABELS.autumn },
+                      { key: "winter", label: SEASON_TILE_LABELS.winter },
+                    ] as const).map(({ key, label }) => (
+                      <Pill tone="amber" key={key} active={regularSeason === key} onClick={() => setRegularSeason(key)}>{label}</Pill>
+                    ))}
+                  </div>
                 ) : (
                   <div className={formRowClass}>
                     <label className={formLabelClass}>数字</label>
-                    {Array.from({ length: 9 }).map((_, i) => (
-                      <Pill tone="amber" key={i + 1} active={regularNumber === i + 1} onClick={() => setRegularNumber(i + 1)}>{i + 1}</Pill>
-                    ))}
+                    {KANJI_NUMBERS.map((kanji, index) => {
+                      const value = (index + 1) as typeof regularNumber;
+                      return (
+                        <Pill tone="amber" key={kanji} active={regularNumber === value} onClick={() => setRegularNumber(value)}>{kanji}</Pill>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               <div className="flex justify-center">
-                <RegularTilePreview back={regularBack} suit={regularSuit} number={regularNumber} honor={regularHonor} />
+                <RegularTilePreview back={regularBack} selection={regularSelection} />
               </div>
             </div>
           </Card>
