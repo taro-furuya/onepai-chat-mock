@@ -434,27 +434,21 @@ export default function NameTilePreview(props: {
     try {
       const { canvas, dataUrl, fileName } = await renderPreviewToCanvas();
 
-      const nav = typeof navigator !== "undefined" ? (navigator as Navigator & {
-        canShare?: (data: any) => boolean;
-        share?: (data: any) => Promise<void>;
-      }) : null;
-
-      if (nav?.canShare && nav.share) {
+      if (!mobileRestricted) {
         try {
           const blob = await canvasToBlob(canvas);
-          const file = new File([blob], fileName, { type: "image/png" });
-          if (nav.canShare({ files: [file] })) {
-            await nav.share({ files: [file], title: "one牌 プレビュー", text: "プレビュー画像" });
-            exported = true;
-            if (preOpenedWindow && !preOpenedWindow.closed) preOpenedWindow.close();
-          }
-        } catch (shareError) {
-          console.warn("Share API export fallback", shareError);
-        }
-      }
-
-      if (!exported) {
-        if (!mobileRestricted) {
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = fileName;
+          link.rel = "noopener";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(blobUrl);
+          exported = true;
+        } catch (desktopError) {
+          console.warn("Desktop download fallback to data URL", desktopError);
           const link = document.createElement("a");
           link.href = dataUrl;
           link.download = fileName;
@@ -463,7 +457,28 @@ export default function NameTilePreview(props: {
           link.click();
           link.remove();
           exported = true;
-        } else {
+        }
+      } else {
+        const nav = typeof navigator !== "undefined" ? (navigator as Navigator & {
+          canShare?: (data: any) => boolean;
+          share?: (data: any) => Promise<void>;
+        }) : null;
+
+        if (nav?.canShare && nav.share) {
+          try {
+            const blob = await canvasToBlob(canvas);
+            const file = new File([blob], fileName, { type: "image/png" });
+            if (nav.canShare({ files: [file] })) {
+              await nav.share({ files: [file], title: "one牌 プレビュー", text: "プレビュー画像" });
+              exported = true;
+              if (preOpenedWindow && !preOpenedWindow.closed) preOpenedWindow.close();
+            }
+          } catch (shareError) {
+            console.warn("Share API export fallback", shareError);
+          }
+        }
+
+        if (!exported) {
           try {
             if (preOpenedWindow && !preOpenedWindow.closed) {
               preOpenedWindow.document.title = "one牌 プレビュー";
@@ -533,6 +548,7 @@ export default function NameTilePreview(props: {
   }, [downloadable, isMobileEnv, renderPreviewToCanvas]);
 
   const showMobileImage = isMobileEnv && !!mobilePreviewUrl;
+  const cornerRadius = 18;
   const frameBorder = showMobileImage ? "none" : "3px solid #111";
 
   return (
@@ -542,13 +558,14 @@ export default function NameTilePreview(props: {
         style={{
           width,
           aspectRatio: `${aspect}`,
-          borderRadius: 18,
+          borderRadius: cornerRadius,
           border: frameBorder,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding,
           position: "relative",
+          overflow: "hidden",
         }}
       >
         <div
@@ -563,6 +580,7 @@ export default function NameTilePreview(props: {
             overflow: "hidden",
             opacity: showMobileImage ? 0 : 1,
             transition: "opacity 120ms ease",
+            pointerEvents: showMobileImage ? "none" : "auto",
           }}
         >
           <div
@@ -636,6 +654,7 @@ export default function NameTilePreview(props: {
             src={mobilePreviewUrl}
             alt="名前牌プレビューの画像"
             className="absolute inset-0 h-full w-full select-none object-contain"
+            style={{ borderRadius: cornerRadius }}
             draggable={false}
           />
         )}
@@ -659,7 +678,7 @@ export default function NameTilePreview(props: {
             disabled={downloading}
             className="inline-flex items-center rounded-xl border border-neutral-200 bg-white px-4 py-2 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {downloading ? "画像生成中..." : "プレビューを画像で保存"}
+            {downloading ? "画像生成中..." : "プレビュー画像を保存"}
           </button>
         </div>
       )}
