@@ -29,8 +29,8 @@ const loadJudgeMeScript = () => {
   script.id = SCRIPT_ID;
   script.src = "https://cdn.judge.me/widget_preloader.js";
   script.async = true;
-  script.dataset.jdgmShopDomain = JUDGEME_CONFIG.shopDomain;
-  script.dataset.jdgmPlatform = "custom";
+  script.setAttribute("data-shop-domain", JUDGEME_CONFIG.shopDomain);
+  script.setAttribute("data-platform", "shopify");
   script.addEventListener("load", refreshJudgeMe);
   document.body.appendChild(script);
 };
@@ -40,6 +40,15 @@ const JudgeMeWidget: React.FC = () => {
 
   useEffect(() => {
     loadJudgeMeScript();
+    let timer: number | undefined;
+    if (typeof window !== "undefined") {
+      timer = window.setTimeout(refreshJudgeMe, 1200);
+    }
+    return () => {
+      if (typeof window !== "undefined" && timer) {
+        window.clearTimeout(timer);
+      }
+    };
   }, []);
 
   return (
@@ -47,6 +56,7 @@ const JudgeMeWidget: React.FC = () => {
       <div
         id={widgetDomId}
         className="jdgm-widget jdgm-review-widget"
+        data-id={JUDGEME_CONFIG.productId}
         data-widget="product_page"
         data-shop-domain={JUDGEME_CONFIG.shopDomain}
         data-product-id={JUDGEME_CONFIG.productId}

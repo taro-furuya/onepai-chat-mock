@@ -146,7 +146,22 @@ export default function NameTilePreview(props: {
   }, [widthCeiling]);
 
   useEffect(() => {
-    setIsMobileEnv(isMobileDownloadRestricted());
+    const mq = typeof window !== "undefined" ? window.matchMedia("(max-width: 640px)") : null;
+
+    const updateEnv = () => {
+      const uaMobile = isMobileDownloadRestricted();
+      const viewportNarrow = mq?.matches ?? false;
+      setIsMobileEnv(uaMobile || viewportNarrow);
+    };
+
+    updateEnv();
+    mq?.addEventListener("change", updateEnv);
+    window.addEventListener("resize", updateEnv);
+
+    return () => {
+      mq?.removeEventListener("change", updateEnv);
+      window.removeEventListener("resize", updateEnv);
+    };
   }, []);
 
   useEffect(() => {
@@ -518,6 +533,7 @@ export default function NameTilePreview(props: {
   }, [downloadable, isMobileEnv, renderPreviewToCanvas]);
 
   const showMobileImage = isMobileEnv && !!mobilePreviewUrl;
+  const frameBorder = showMobileImage ? "none" : "3px solid #111";
 
   return (
     <div className="space-y-3" ref={containerRef} style={{ width: "100%", maxWidth: widthCeiling, margin: "0 auto" }}>
@@ -527,7 +543,7 @@ export default function NameTilePreview(props: {
           width,
           aspectRatio: `${aspect}`,
           borderRadius: 18,
-          border: "3px solid #111",
+          border: frameBorder,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -635,7 +651,7 @@ export default function NameTilePreview(props: {
         プレビューはイメージです。色味などは実際と異なる可能性がございます。
       </p>
 
-      {downloadable && (
+      {downloadable && !isMobileEnv && (
         <div className="flex justify-center">
           <button
             type="button"
