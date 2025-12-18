@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import Card from "../components/Card";
 import Pill from "../components/Pill";
 import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview";
-import RegularTilePreview from "../components/RegularTilePreview";
+import RegularTilePreview, { RegularTileSelection } from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 import { computeEstimate, computeCartTotals, PRICING, type Flow } from "../utils/pricing";
 import { asset, type HonorKey } from "../utils/asset";
