@@ -1,6 +1,11 @@
 import React from "react";
 import { getHonorTileSrc, getNumberTileSrc, HonorKey } from "../utils/asset";
 
+// 互換用の型（従来の呼び出しシグネチャを許容）
+export type RegularTileSelection =
+  | { suit: "honor"; number: 1; honor: HonorKey; aka5?: boolean }
+  | { suit: "manzu" | "souzu" | "pinzu"; number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9; honor: HonorKey; aka5?: boolean };
+
 export default function RegularTilePreview(props: {
   back: "yellow" | "blue"; // 背面色は今は使わず、将来用（写真は表のみ）
   suit: "honor" | "manzu" | "souzu" | "pinzu";
