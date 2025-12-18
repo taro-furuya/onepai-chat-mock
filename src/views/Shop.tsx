@@ -5,7 +5,7 @@ import NameTilePreview, { ColorKey, Layout } from "../components/NameTilePreview
 import RegularTilePreview, { RegularTileSelection } from "../components/RegularTilePreview";
 import Hero from "../components/Hero";
 import { computeEstimate, computeCartTotals, PRICING, type Flow } from "../utils/pricing";
-import { asset } from "../utils/asset";
+import { asset, type HonorKey } from "../utils/asset";
 import JudgeMeWidget from "../components/JudgeMeWidget";
 
 /** ----------------- 型・定数 ----------------- */
@@ -31,6 +31,7 @@ const SUIT_SUFFIX: Record<"manzu" | "souzu" | "pinzu", string> = {
   souzu: "索",
   pinzu: "筒",
 };
+const HONOR_LIST: HonorKey[] = ["東", "南", "西", "北", "白", "發", "中"];
 const KANJI_NUMBERS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"] as const;
 const RED_TILE_LABELS: Record<"manzu" | "souzu" | "pinzu", string> = {
   manzu: "五萬（赤）",
@@ -42,6 +43,12 @@ const SEASON_TILE_LABELS: Record<"spring" | "summer" | "autumn" | "winter", stri
   summer: "季節牌（夏）",
   autumn: "季節牌（秋）",
   winter: "季節牌（冬）",
+};
+const SEASON_HONOR_MAP: Record<"spring" | "summer" | "autumn" | "winter", HonorKey> = {
+  spring: "春",
+  summer: "夏",
+  autumn: "秋",
+  winter: "冬",
 };
 const containerStyle: React.CSSProperties = { maxWidth: "min(1024px, 92vw)", margin: "0 auto" };
 const formRowClass = "flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3";
@@ -211,7 +218,7 @@ const Shop: React.FC = () => {
     "honor" | "manzu" | "souzu" | "pinzu" | "red" | "season"
   >("honor");
   const [regularNumber, setRegularNumber] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9>(1);
-  const [regularHonor, setRegularHonor] = useState<"東" | "南" | "西" | "北" | "白" | "發" | "中">("東");
+  const [regularHonor, setRegularHonor] = useState<HonorKey>("東");
   const [regularRedSuit, setRegularRedSuit] = useState<"manzu" | "souzu" | "pinzu">("manzu");
   const [regularSeason, setRegularSeason] = useState<"spring" | "summer" | "autumn" | "winter">("spring");
 
@@ -230,37 +237,50 @@ const Shop: React.FC = () => {
   const [optKeyholderInput, setOptKeyholderInput] = useState("0");
   const [optKiribakoInput, setOptKiribakoInput] = useState("0");
 
-  const regularSelection = useMemo<RegularTileSelection>(() => {
-    switch (regularSuit) {
-      case "honor":
-        return { kind: "honor", honor: regularHonor };
-      case "manzu":
-      case "souzu":
-      case "pinzu":
-        return { kind: "suit", suit: regularSuit, number: regularNumber };
-      case "red":
-        return { kind: "suit", suit: regularRedSuit, number: 5, red: true };
-      case "season":
-      default:
-        return { kind: "season", season: regularSeason };
-    }
-  }, [regularSuit, regularHonor, regularNumber, regularRedSuit, regularSeason]);
+  const regularPreviewProps = useMemo(
+    () =>
+      regularSuit === "season"
+        ? {
+            suit: "honor" as const,
+            number: 1 as const,
+            honor: SEASON_HONOR_MAP[regularSeason],
+            aka5: false,
+          }
+        : regularSuit === "red"
+        ? {
+            suit: regularRedSuit,
+            number: 5 as const,
+            honor: "東" as HonorKey, // honorは未使用
+            aka5: true,
+          }
+        : regularSuit === "honor"
+        ? {
+            suit: "honor" as const,
+            number: 1 as const,
+            honor: regularHonor,
+            aka5: false,
+          }
+        : {
+            suit: regularSuit,
+            number: regularNumber,
+            honor: "東" as HonorKey, // honorは未使用
+            aka5: false,
+          },
+    [regularSuit, regularSeason, regularRedSuit, regularHonor, regularNumber]
+  );
 
   const regularTileLabel = useMemo(() => {
-    switch (regularSelection.kind) {
-      case "honor":
-        return regularSelection.honor;
-      case "season":
-        return SEASON_TILE_LABELS[regularSelection.season];
-      case "suit":
-        if (regularSelection.red) {
-          return RED_TILE_LABELS[regularSelection.suit];
-        }
-        return `${KANJI_NUMBERS[regularSelection.number - 1]}${SUIT_SUFFIX[regularSelection.suit]}`;
-      default:
-        return "通常牌";
+    if (regularSuit === "honor") {
+      return regularHonor;
     }
-  }, [regularSelection]);
+    if (regularSuit === "season") {
+      return SEASON_TILE_LABELS[regularSeason];
+    }
+    if (regularSuit === "red") {
+      return RED_TILE_LABELS[regularRedSuit];
+    }
+    return `${KANJI_NUMBERS[regularNumber - 1]}${SUIT_SUFFIX[regularSuit]}`;
+  }, [regularHonor, regularRedSuit, regularNumber, regularSeason, regularSuit]);
 
   // ミニカート
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -594,8 +614,8 @@ const Shop: React.FC = () => {
                 {regularSuit === "honor" ? (
                   <div className={formRowClass}>
                     <label className={formLabelClass}>字牌</label>
-                    {["東", "南", "西", "北", "白", "發", "中"].map((h) => (
-                      <Pill tone="rose" key={h} active={regularHonor === (h as any)} onClick={() => setRegularHonor(h as any)}>{h}</Pill>
+                    {HONOR_LIST.map((h) => (
+                      <Pill tone="rose" key={h} active={regularHonor === h} onClick={() => setRegularHonor(h)}>{h}</Pill>
                     ))}
                   </div>
                 ) : regularSuit === "red" ? (
@@ -635,7 +655,7 @@ const Shop: React.FC = () => {
               </div>
 
               <div className="flex justify-center">
-                <RegularTilePreview back={regularBack} selection={regularSelection} />
+                <RegularTilePreview back={regularBack} {...regularPreviewProps} />
               </div>
             </div>
           </Card>
