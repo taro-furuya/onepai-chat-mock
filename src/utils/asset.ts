@@ -21,10 +21,10 @@ export function getNumberTileSrc(
   // 5 で赤指定が来たら「赤5{m|p|s}.jpg」を返す
   if (number === 5 && aka5) {
     const suf = suit === "manzu" ? "m" : suit === "pinzu" ? "p" : "s";
-    return `/assets/tiles/${suit}/赤5${suf}.jpg`;
+    return asset(`tiles/${suit}/赤5${suf}.jpg`);
   }
   const suf = suit === "manzu" ? "m" : suit === "pinzu" ? "p" : "s";
-  return `/assets/tiles/${suit}/${number}${suf}.jpg`;
+  return asset(`tiles/${suit}/${number}${suf}.jpg`);
 }
 
 // 字牌・花牌
@@ -42,5 +42,5 @@ export type HonorKey =
   | "冬";
 
 export function getHonorTileSrc(honor: HonorKey): string {
-  return `/assets/tiles/honor/${honor}.jpg`;
+  return asset(`tiles/honor/${honor}.jpg`);
 }
