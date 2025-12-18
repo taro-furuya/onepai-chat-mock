@@ -58,6 +58,11 @@ export default function RegularTilePreview(props: {
     [aka5, fallbackSrc, honor, number, suit, useFallback]
   );
 
+  const srcSet = useMemo(() => {
+    if (!src.endsWith(".jpg")) return undefined;
+    return `${src} 1x, ${src.replace(".jpg", "@2x.jpg")} 2x`;
+  }, [src]);
+
   return (
     <div
       style={{
@@ -73,11 +78,12 @@ export default function RegularTilePreview(props: {
       {/* 画像はオリジナル解像度を保ちつつ全体にフィット */}
       <img
         src={src}
+        srcSet={srcSet}
         alt="mahjong tile"
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "cover", // 牌全面を見せたい時は 'contain' に変更
+          objectFit: "contain",
           display: "block",
         }}
         loading="lazy"
