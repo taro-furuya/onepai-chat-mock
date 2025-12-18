@@ -1,26 +1,50 @@
 import React from "react";
+import { getHonorTileSrc, getNumberTileSrc, HonorKey } from "../utils/asset";
 
-export default function RegularTilePreview({
-  suit,
-  number,
-  honor,
-  back,
-}: {
+// 互換用の型（従来の呼び出しシグネチャを許容）
+export type RegularTileSelection =
+  | { suit: "honor"; number: 1; honor: HonorKey; aka5?: boolean }
+  | { suit: "manzu" | "souzu" | "pinzu"; number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9; honor: HonorKey; aka5?: boolean };
+
+export default function RegularTilePreview(props: {
+  back: "yellow" | "blue"; // 背面色は今は使わず、将来用（写真は表のみ）
   suit: "honor" | "manzu" | "souzu" | "pinzu";
-  number: number;
-  honor: "東" | "南" | "西" | "北" | "白" | "發" | "中";
-  back: "yellow" | "blue";
+  number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  honor: HonorKey; // suit==="honor" のときに参照
+  aka5?: boolean; // 5 のとき赤牌にする
+  width?: number; // 表示幅（任意）
 }) {
-  const face =
-    suit === "honor" ? honor : `${number}${suit === "manzu" ? "萬" : suit === "souzu" ? "索" : "筒"}`;
+  const { suit, number, honor, aka5 = false, width = 220 } = props;
+
+  // 写真のパスを決定
+  const src =
+    suit === "honor"
+      ? getHonorTileSrc(honor)
+      : getNumberTileSrc(suit, number, aka5);
+
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-44 h-56 rounded-xl border bg-white grid place-items-center text-5xl">
-        {face}
-      </div>
-      <div className="text-xs text-neutral-600">
-        背面: {back === "yellow" ? "黄色" : "青色"}
-      </div>
+    <div
+      style={{
+        width,
+        aspectRatio: "21/28",
+        borderRadius: 12,
+        overflow: "hidden",
+        boxShadow: "0 10px 24px rgba(0,0,0,.12)",
+        background: "#fff",
+      }}
+      aria-label="tile-preview"
+    >
+      {/* 画像はオリジナル解像度を保ちつつ全体にフィット */}
+      <img
+        src={src}
+        alt="mahjong tile"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover", // 牌全面を見せたい時は 'contain' に変更
+          display: "block",
+        }}
+      />
     </div>
   );
 }
