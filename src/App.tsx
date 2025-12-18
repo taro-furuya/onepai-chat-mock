@@ -3,6 +3,7 @@ import Nav from "./components/Nav";
 import Shop from "./views/Shop";
 import Guidelines from "./views/Guidelines";
 import Corporate from "./views/Corporate";
+import CaseStudies from "./views/CaseStudies";
 import QAWidget from "./components/QAWidget";
 
 const useHash = () =>
@@ -15,11 +16,10 @@ const useHash = () =>
 const App: React.FC = () => {
   const hash = useHash();
 
-  const gotoCorporate = () => { window.location.hash = "#/corporate"; };
-
-  let View: React.ReactNode = <Shop gotoCorporate={gotoCorporate} />;
+  let View: React.ReactNode = <Shop />;
   if (hash.startsWith("#/guidelines")) View = <Guidelines />;
   if (hash.startsWith("#/corporate")) View = <Corporate />;
+  if (hash.startsWith("#/cases")) View = <CaseStudies />;
 
   useEffect(() => {
     if (!window.location.hash) window.location.hash = "#/";
@@ -29,10 +29,9 @@ const App: React.FC = () => {
     <>
       <Nav />
       {View}
+      <QAWidget />
     </>
   );
 };
 
 export default App;
-
-<QAWidget />

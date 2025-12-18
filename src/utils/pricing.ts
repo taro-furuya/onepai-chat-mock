@@ -30,7 +30,7 @@ export const PRICING = {
 export type Flow = "original_single" | "fullset" | "regular";
 type DesignType = "name_print" | "bring_own" | "commission";
 type Variant = "standard" | "mm30" | "default";
-type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "rainbow";
+type ColorKey = "black" | "red" | "blue" | "green" | "pink" | "gold" | "silver" | "rainbow";
 
 export type EstimateInput = {
   flow: Flow;
