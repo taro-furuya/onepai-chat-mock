@@ -83,7 +83,7 @@ export default function RegularTilePreview(props: {
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "contain",
+          objectFit: "cover",
           display: "block",
         }}
         loading="lazy"
