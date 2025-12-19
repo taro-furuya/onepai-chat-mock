@@ -23,11 +23,52 @@
     @apply btn bg-white border-neutral-200 hover:bg-neutral-50;
   }
   .pill {
-    @apply inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm
-           transition hover:ring-1 hover:ring-neutral-200 select-none;
+    @apply inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium
+           transition select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+           focus-visible:outline-black/30;
   }
-  .pill-active {
-    @apply bg-black text-white border-black hover:ring-0;
+  .pill:disabled {
+    @apply cursor-not-allowed opacity-60 shadow-none;
+    transform: none !important;
+  }
+  .pill:hover {
+    @apply -translate-y-[1px];
+  }
+  .pill[data-tone="neutral"] {
+    @apply bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50 shadow-[0_2px_8px_rgba(15,23,42,0.06)];
+  }
+  .pill[data-tone="neutral"].pill-active {
+    @apply bg-neutral-900 border-neutral-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.25)];
+  }
+  .pill[data-tone="slate"] {
+    @apply bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-[0_2px_8px_rgba(30,41,59,0.08)];
+  }
+  .pill[data-tone="slate"].pill-active {
+    @apply bg-slate-800 border-slate-800 text-white shadow-[0_12px_26px_rgba(30,41,59,0.28)];
+  }
+  .pill[data-tone="indigo"] {
+    @apply bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 shadow-[0_2px_8px_rgba(79,70,229,0.12)];
+  }
+  .pill[data-tone="indigo"].pill-active {
+    @apply bg-indigo-600 border-indigo-600 text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)];
+  }
+  .pill[data-tone="emerald"] {
+    @apply bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 shadow-[0_2px_8px_rgba(16,185,129,0.12)];
+  }
+  .pill[data-tone="emerald"].pill-active {
+    @apply bg-emerald-600 border-emerald-600 text-white shadow-[0_14px_30px_rgba(16,185,129,0.32)];
+  }
+  .pill[data-tone="amber"] {
+    @apply bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 shadow-[0_2px_8px_rgba(217,119,6,0.14)];
+  }
+  .pill[data-tone="amber"].pill-active {
+    @apply bg-amber-500 border-amber-500 text-white shadow-[0_14px_30px_rgba(217,119,6,0.32)];
+  }
+  .pill[data-tone="rose"] {
+    @apply bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 shadow-[0_2px_8px_rgba(244,63,94,0.14)];
+  }
+  .pill[data-tone="rose"].pill-active {
+    @apply bg-rose-500 border-rose-500 text-white shadow-[0_14px_30px_rgba(244,63,94,0.32)];
   }
 }
 
