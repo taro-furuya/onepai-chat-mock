@@ -27,6 +27,10 @@
            transition select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
            focus-visible:outline-black/30;
   }
+  .pill:disabled {
+    @apply cursor-not-allowed opacity-60 shadow-none;
+    transform: none !important;
+  }
   .pill:hover {
     @apply -translate-y-[1px];
   }

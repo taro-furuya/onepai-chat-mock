@@ -32,6 +32,19 @@ const SUIT_SUFFIX: Record<"manzu" | "souzu" | "pinzu", string> = {
   pinzu: "筒",
 };
 const HONOR_LIST: HonorKey[] = ["東", "南", "西", "北", "白", "發", "中"];
+const HONOR_STOCK: Record<HonorKey, boolean> = {
+  東: true,
+  南: true,
+  西: true,
+  北: false,
+  白: true,
+  發: false,
+  中: true,
+  春: true,
+  夏: true,
+  秋: true,
+  冬: true,
+};
 const KANJI_NUMBERS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"] as const;
 const RED_TILE_LABELS: Record<"manzu" | "souzu" | "pinzu", string> = {
   manzu: "五萬（赤）",
@@ -43,6 +56,18 @@ const SEASON_TILE_LABELS: Record<"spring" | "summer" | "autumn" | "winter", stri
   summer: "季節牌（夏）",
   autumn: "季節牌（秋）",
   winter: "季節牌（冬）",
+};
+const NUMBER_STOCK: Record<"manzu" | "souzu" | "pinzu", Partial<Record<number, boolean>>> = {
+  manzu: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true },
+  souzu: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true },
+  pinzu: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true },
+};
+const RED_STOCK: Record<"manzu" | "souzu" | "pinzu", boolean> = { manzu: true, souzu: true, pinzu: false };
+const SEASON_STOCK: Record<"spring" | "summer" | "autumn" | "winter", boolean> = {
+  spring: true,
+  summer: true,
+  autumn: true,
+  winter: true,
 };
 const SEASON_HONOR_MAP: Record<"spring" | "summer" | "autumn" | "winter", HonorKey> = {
   spring: "春",
@@ -615,7 +640,16 @@ const Shop: React.FC = () => {
                   <div className={formRowClass}>
                     <label className={formLabelClass}>字牌</label>
                     {HONOR_LIST.map((h) => (
-                      <Pill tone="rose" key={h} active={regularHonor === h} onClick={() => setRegularHonor(h)}>{h}</Pill>
+                      <Pill
+                        tone="rose"
+                        key={h}
+                        active={regularHonor === h}
+                        onClick={() => setRegularHonor(h)}
+                        disabled={!HONOR_STOCK[h]}
+                      >
+                        {h}
+                        {!HONOR_STOCK[h] && <span className="text-[10px] text-neutral-600">(在庫なし)</span>}
+                      </Pill>
                     ))}
                   </div>
                 ) : regularSuit === "red" ? (
@@ -626,7 +660,16 @@ const Shop: React.FC = () => {
                       { key: "pinzu", label: RED_TILE_LABELS.pinzu },
                       { key: "souzu", label: RED_TILE_LABELS.souzu },
                     ] as const).map(({ key, label }) => (
-                      <Pill tone="amber" key={key} active={regularRedSuit === key} onClick={() => setRegularRedSuit(key)}>{label}</Pill>
+                      <Pill
+                        tone="amber"
+                        key={key}
+                        active={regularRedSuit === key}
+                        onClick={() => setRegularRedSuit(key)}
+                        disabled={!RED_STOCK[key]}
+                      >
+                        {label}
+                        {!RED_STOCK[key] && <span className="text-[10px] text-neutral-600">(在庫なし)</span>}
+                      </Pill>
                     ))}
                   </div>
                 ) : regularSuit === "season" ? (
@@ -638,7 +681,16 @@ const Shop: React.FC = () => {
                       { key: "autumn", label: SEASON_TILE_LABELS.autumn },
                       { key: "winter", label: SEASON_TILE_LABELS.winter },
                     ] as const).map(({ key, label }) => (
-                      <Pill tone="amber" key={key} active={regularSeason === key} onClick={() => setRegularSeason(key)}>{label}</Pill>
+                      <Pill
+                        tone="amber"
+                        key={key}
+                        active={regularSeason === key}
+                        onClick={() => setRegularSeason(key)}
+                        disabled={!SEASON_STOCK[key]}
+                      >
+                        {label}
+                        {!SEASON_STOCK[key] && <span className="text-[10px] text-neutral-600">(在庫なし)</span>}
+                      </Pill>
                     ))}
                   </div>
                 ) : (
@@ -646,8 +698,18 @@ const Shop: React.FC = () => {
                     <label className={formLabelClass}>数字</label>
                     {KANJI_NUMBERS.map((kanji, index) => {
                       const value = (index + 1) as typeof regularNumber;
+                      const available = NUMBER_STOCK[regularSuit]?.[value] ?? true;
                       return (
-                        <Pill tone="amber" key={kanji} active={regularNumber === value} onClick={() => setRegularNumber(value)}>{kanji}</Pill>
+                        <Pill
+                          tone="amber"
+                          key={kanji}
+                          active={regularNumber === value}
+                          onClick={() => setRegularNumber(value)}
+                          disabled={!available}
+                        >
+                          {kanji}
+                          {!available && <span className="text-[10px] text-neutral-600">(在庫なし)</span>}
+                        </Pill>
                       );
                     })}
                   </div>

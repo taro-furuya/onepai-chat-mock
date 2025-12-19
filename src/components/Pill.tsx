@@ -9,16 +9,21 @@ type Props = {
   onClick?: () => void;
   className?: string;
   children: React.ReactNode;
+  disabled?: boolean;
 };
 
-const Pill: React.FC<Props> = ({ active, tone = "neutral", onClick, className = "", children }) => {
+const Pill: React.FC<Props> = ({ active, tone = "neutral", onClick, className = "", children, disabled = false }) => {
+  const handleClick = disabled ? undefined : onClick;
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.98 }}
+      whileTap={disabled ? undefined : { scale: 0.98 }}
       data-tone={tone}
       className={`pill ${active ? "pill-active" : ""} ${className}`}
-      onClick={onClick}
+      onClick={handleClick}
+      disabled={disabled}
+      aria-pressed={active}
+      aria-disabled={disabled}
     >
       {children}
     </motion.button>
