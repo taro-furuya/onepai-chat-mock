@@ -86,7 +86,8 @@ export default function RegularTilePreview(props: {
           objectFit: "cover",
           display: "block",
         }}
-        loading="lazy"
+        loading="eager"
+        decoding="async"
         onError={() => {
           if (!useFallback) {
             setUseFallback(true);
