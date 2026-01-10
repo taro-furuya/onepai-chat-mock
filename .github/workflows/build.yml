@@ -1,0 +1,70 @@
+name: Build onepai bundle
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]  # ← 別ブランチなら変更してください
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # dist/assets の中から .js/.css をピックして固定名にコピー
+      # （Viteのハッシュ名を固定名にそろえるため）
+      - name: Make fixed bundle names
+        shell: bash
+        run: |
+          set -e
+          # JS pick: index/mainエントリがあれば最優先、無ければ一番大きいJS
+          JS_CANDIDATE=$(ls -1 dist/assets/*.js 2>/dev/null | grep -E '(index|main).*\.js$' || true)
+          if [ -z "$JS_CANDIDATE" ]; then
+            JS_CANDIDATE=$(ls -S dist/assets/*.js 2>/dev/null | head -n 1)
+          fi
+          # CSS pick: 同様に index/main を優先、無ければ一番大きいCSS
+          CSS_CANDIDATE=$(ls -1 dist/assets/*.css 2>/dev/null | grep -E '(index|main).*\.css$' || true)
+          if [ -z "$CSS_CANDIDATE" ]; then
+            CSS_CANDIDATE=$(ls -S dist/assets/*.css 2>/dev/null | head -n 1 || true)
+          fi
+
+          mkdir -p bundle
+          if [ -n "$JS_CANDIDATE" ]; then
+            cp "$JS_CANDIDATE" bundle/onepai.bundle.js
+          fi
+          if [ -n "$CSS_CANDIDATE" ]; then
+            cp "$CSS_CANDIDATE" bundle/onepai.bundle.css
+          fi
+
+          echo "---- Picked files ----"
+          ls -l bundle || true
+
+      # そのままダウンロードできるようアーティファクト化
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onepai-bundle
+          path: |
+            bundle/onepai.bundle.js
+            bundle/onepai.bundle.css
+
+      # 念のため dist 全体も保存（何かあれば中身を個別確認できるように）
+      - name: Upload full dist (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: onepai-dist-full
+          path: dist
