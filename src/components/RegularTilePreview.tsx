@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getHonorTileSrc, getNumberTileSrc, HonorKey } from "../utils/asset";
 
 // 互換用の型（従来の呼び出しシグネチャを許容）
@@ -16,6 +16,7 @@ export default function RegularTilePreview(props: {
 }) {
   const { suit, number, honor, aka5 = false, width = 220 } = props;
   const [useFallback, setUseFallback] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const label = useMemo(() => {
     if (suit === "honor") return honor;
@@ -58,6 +59,22 @@ export default function RegularTilePreview(props: {
     [aka5, fallbackSrc, honor, number, suit, useFallback]
   );
 
+  useEffect(() => {
+    if (useFallback) {
+      setLoaded(true);
+      return;
+    }
+    setLoaded(false);
+    const timer = window.setTimeout(() => {
+      if (!loaded) {
+        setUseFallback(true);
+      }
+    }, 1500);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loaded, src, useFallback]);
+
   const srcSet = useMemo(() => {
     if (!src.endsWith(".jpg")) return undefined;
     return `${src} 1x, ${src.replace(".jpg", "@2x.jpg")} 2x`;
@@ -88,6 +105,7 @@ export default function RegularTilePreview(props: {
         }}
         loading="eager"
         decoding="async"
+        onLoad={() => setLoaded(true)}
         onError={() => {
           if (!useFallback) {
             setUseFallback(true);
