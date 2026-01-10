@@ -1,5 +1,10 @@
 // src/components/QAWidget.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+
+const getBottomOffset = () => {
+  if (typeof window === "undefined") return 16;
+  return window.matchMedia("(max-width: 639px)").matches ? 96 : 16;
+};
 
 export default function QAWidget() {
   const [open, setOpen] = useState(false);
@@ -7,6 +12,15 @@ export default function QAWidget() {
   const [logs, setLogs] = useState<{ role: "user" | "bot"; text: string }[]>([
     { role: "bot", text: "ご質問をどうぞ。納期や仕様などお答えします。" },
   ]);
+  const [bottomOffset, setBottomOffset] = useState(() => getBottomOffset());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => setBottomOffset(getBottomOffset());
+    handler();
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   const ask = async () => {
     const q = input.trim();
@@ -26,7 +40,13 @@ export default function QAWidget() {
   };
 
   return (
-    <div className="fixed right-4 bottom-4 z-50">
+    <div
+      className="fixed z-50"
+      style={{
+        bottom: `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`,
+        right: "calc(1rem + env(safe-area-inset-right, 0px))",
+      }}
+    >
       {!open ? (
         <button
           className="px-4 py-3 rounded-full bg-black text-white shadow-lg"
